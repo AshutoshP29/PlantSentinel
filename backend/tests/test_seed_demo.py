@@ -66,16 +66,32 @@ def test_broken_story_fails_the_run(data_dir: Path, capsys: pytest.CaptureFixtur
     assert "verify       FAIL" in out and "Seed FAILED at: verify" in out
 
 
-def test_inspection_step_uses_pipeline_when_present(
+def test_inspection_step_uses_agent_pipeline(
     data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import sys
-    import types
+    from app.agent import inspections
 
     seen: list[Path] = []
-    mod = types.ModuleType("app.ingestion.inspections")
-    mod.ingest_scans = lambda conn, directory: seen.append(directory) or {"inspections": 4}
-    monkeypatch.setitem(sys.modules, "app.ingestion.inspections", mod)
+
+    def fake_ingest(conn, directory):  # defined here, so no Ollama readiness check
+        seen.append(directory)
+        return [
+            inspections.ScanReport(file="INSP-004_P-101.jpg", status="added", inspection_id="x"),
+            inspections.ScanReport(file="INSP-001_P-104.jpg", status="skipped"),
+        ]
+
+    monkeypatch.setattr(inspections, "ingest_scans", fake_ingest)
     ns = seed_demo.argparse.Namespace(skip_inspections=False)
-    assert seed_demo.step_inspections(ns) == "{'inspections': 4}"
+    assert seed_demo.step_inspections(ns) == "2 scans: 1 added, 1 skipped"
     assert seen == [data_dir / "scans"]
+
+
+def test_failed_scan_is_a_warning(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.agent import inspections
+
+    def fake_ingest(conn, directory):
+        return [inspections.ScanReport(file="a.jpg", status="failed", detail="bad json")]
+
+    monkeypatch.setattr(inspections, "ingest_scans", fake_ingest)
+    with pytest.raises(seed_demo.Skipped, match=r"1 failed; failed: a.jpg: bad json"):
+        seed_demo.step_inspections(seed_demo.argparse.Namespace(skip_inspections=False))
