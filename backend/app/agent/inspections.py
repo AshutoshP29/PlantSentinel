@@ -3,9 +3,13 @@
 Run at seeding time, not during a live question: the vision model is slow on a 6 GB GPU.
 
     scan (png/jpg/pdf) -> page images -> vision model transcribes each page (raw_text)
-    -> vision model extracts structured findings (JSON schema) -> one inspections row
+    -> text LLM extracts structured findings (JSON schema) -> one inspections row
 
-The vision call is injectable (`VisionFn`) so the pipeline is testable without Ollama.
+The small vision model transcribes well but returns empty findings when asked to structure
+text, so extraction uses the text LLM. Date, report number and the numbered findings are
+also parsed from the transcription as a fallback, so a weak model reply never loses them.
+Both model calls are injectable (`VisionFn`, `ExtractFn`) so the pipeline is testable
+without Ollama.
 """
 
 from __future__ import annotations
@@ -32,6 +36,12 @@ SCAN_SUFFIXES = IMAGE_SUFFIXES | {".pdf"}
 
 # (prompt, images as PNG/JPEG bytes, optional JSON schema) -> model text
 VisionFn = Callable[[str, list[bytes], dict | None], str]
+# (prompt, JSON schema) -> model text (JSON)
+ExtractFn = Callable[[str, dict], str]
+
+# Stops a looping transcription ("[illegible], [illegible], ...") early: a page of a report
+# is well under this many tokens.
+VISION_OPTIONS = {"num_predict": 1500, "repeat_penalty": 1.1}
 
 TRANSCRIBE_PROMPT = (
     "This is one page of a scanned equipment inspection report. Transcribe all text on the page "
@@ -101,13 +111,99 @@ def ollama_vision(prompt: str, images: list[bytes], schema: dict | None = None) 
         ],
         "stream": False,
         "keep_alive": s.llm_keep_alive_s,
-        "options": {"temperature": 0, "num_ctx": s.llm_num_ctx},
+        "options": {"temperature": 0, "num_ctx": s.llm_num_ctx, **VISION_OPTIONS},
     }
     if schema:
         body["format"] = schema
     r = httpx.post(f"{s.ollama_host}/api/chat", json=body, timeout=s.llm_timeout_s * 2)
     r.raise_for_status()
     return r.json()["message"]["content"]
+
+
+def ollama_extract(prompt: str, schema: dict) -> str:
+    """Structure a transcription with the text LLM (schema-constrained JSON)."""
+    s = get_settings()
+    body = {
+        "model": s.llm_model,
+        "messages": [{"role": "user", "content": prompt}],
+        "format": schema,
+        "stream": False,
+        "keep_alive": s.llm_keep_alive_s,
+        "options": {"temperature": 0, "num_ctx": s.llm_num_ctx},
+    }
+    r = httpx.post(f"{s.ollama_host}/api/chat", json=body, timeout=s.llm_timeout_s * 2)
+    r.raise_for_status()
+    return r.json()["message"]["content"]
+
+
+# --------------------------------------------------------------------------- text fallbacks
+
+REPORT_NO_RE = re.compile(r"(?<![A-Za-z])INSP\s*-?\s*(\d{1,6})(?!\d)", re.IGNORECASE)
+
+
+def printed_report_id(*candidates: str | None) -> str | None:
+    """'INSP-004' from the printed report number (or the file name), normalised."""
+    for text in candidates:
+        m = REPORT_NO_RE.search(text or "")
+        if m:
+            return f"INSP-{m.group(1)}"
+    return None
+
+
+DATE_RE = re.compile(r"\bdate(?: of inspection)?\s*[:\-]\s*(\d{4}-\d{2}-\d{2})", re.IGNORECASE)
+SECTION_RE = re.compile(r"^\s*(findings|observations)\s*:?\s*$", re.IGNORECASE)
+NEXT_SECTION_RE = re.compile(
+    r"^\s*(recommendations?|actions?|conclusions?|inspected by|reviewed by)\b", re.IGNORECASE
+)
+NUMBERED_RE = re.compile(r"^\s*(\d{1,2})[.)]\s+(.+)$")
+FLAG_WORDS = re.compile(
+    r"misalign|leak|chipped|crack|broken|damage|alarm|trip|exceed|out of tolerance|fouled|"
+    r"deposit|worn|wear track|soft foot|above|below design|darkened",
+    re.IGNORECASE,
+)
+# Wording that says the item is fine, even if it mentions a fault word ("no visible leakage").
+NORMAL_WORDS = re.compile(
+    r"\bnormal\b|within limits|serviceable|no visible|no abnormal|\bok\b|"
+    r"\bno (?:\w+ ){0,2}(?:leak\w*|damage|crack\w*|wear)",
+    re.IGNORECASE,
+)
+
+
+def looks_abnormal(text: str) -> bool:
+    return bool(FLAG_WORDS.search(text)) and not NORMAL_WORDS.search(text)
+
+
+def date_from_text(text: str) -> str | None:
+    m = DATE_RE.search(text)
+    return m.group(1) if m else None
+
+
+def findings_from_text(text: str) -> list[Finding]:
+    """The numbered items under a 'Findings' heading, one Finding each (continuation lines
+    are joined). Used only when the model returned no findings."""
+    out: list[Finding] = []
+    page, inside = 1, False
+    for line in text.splitlines():
+        if m := re.match(r"\[page (\d+)\]", line.strip()):
+            page = int(m.group(1))
+            continue
+        if SECTION_RE.match(line):
+            inside = True
+            continue
+        if inside and NEXT_SECTION_RE.match(line):
+            inside = False
+            continue
+        if not inside or not line.strip():
+            continue
+        if m := NUMBERED_RE.match(line):
+            body = m.group(2).strip()
+            item, _, result = body.partition(":")
+            out.append(Finding(item=item.strip(), result=(result or body).strip(), page=page))
+        elif out:  # wrapped line of the previous finding
+            out[-1].result = f"{out[-1].result} {line.strip()}"
+    for f in out:
+        f.flagged = looks_abnormal(f"{f.item} {f.result}")
+    return out
 
 
 # --------------------------------------------------------------------------- pipeline
@@ -133,9 +229,17 @@ def _tag_from_name(name: str) -> str | None:
         return None
 
 
-def read_scan(path: Path, vision: VisionFn | None = None) -> tuple[str, InspectionExtract]:
-    """Transcribe every page, then extract structured findings. Returns (raw_text, extract)."""
+def read_scan(
+    path: Path, vision: VisionFn | None = None, extract: ExtractFn | None = None
+) -> tuple[str, InspectionExtract]:
+    """Transcribe every page (vision), then extract structured findings (text LLM).
+
+    Returns (raw_text, extract). Passing only `vision` (tests, custom models) uses it for both
+    steps, as before.
+    """
     pages = page_images(path)
+    if extract is None:
+        extract = ollama_extract if vision is None else (lambda p, s: vision(p, [], s))
     vision = vision or ollama_vision
     texts = [vision(TRANSCRIBE_PROMPT, [img], None).strip() for img in pages]
     raw_text = "\n\n".join(f"[page {i}]\n{t}" for i, t in enumerate(texts, start=1))
@@ -143,39 +247,34 @@ def read_scan(path: Path, vision: VisionFn | None = None) -> tuple[str, Inspecti
     prompt = EXTRACT_PROMPT.format(file_name=path.name, text=raw_text)
     last_err = ""
     for attempt in range(2):
-        out = vision(
-            prompt if not attempt else f"{prompt}\nPrevious JSON invalid: {last_err}", [], schema
+        out = extract(
+            prompt if not attempt else f"{prompt}\nPrevious JSON invalid: {last_err}", schema
         )
         try:
-            extract = InspectionExtract.model_validate_json(out)
+            result = InspectionExtract.model_validate_json(out)
             break
         except ValidationError as exc:
             last_err = str(exc)[:300]
     else:
-        raise ValueError(f"vision model returned invalid JSON for {path.name}: {last_err}")
+        raise ValueError(f"model returned invalid JSON for {path.name}: {last_err}")
+    # What is printed on the page beats a weak model reply.
+    result.date = result.date or date_from_text(raw_text)
+    result.report_no = result.report_no or printed_report_id(raw_text)
+    if not result.findings:
+        result.findings = findings_from_text(raw_text)
+    for f in result.findings:  # models rarely set the flag; the wording is a reliable signal
+        f.flagged = f.flagged or looks_abnormal(f"{f.item} {f.result}")
     # The file name is a reliable fallback for the tag; the model's reading wins if valid.
     tag = None
-    if extract.tag:
+    if result.tag:
         try:
-            tag = normalise_tag(extract.tag)
+            tag = normalise_tag(result.tag)
         except ValueError:
             tag = None
-    extract.tag = tag or _tag_from_name(path.stem)
-    for f in extract.findings:
+    result.tag = tag or _tag_from_name(path.stem)
+    for f in result.findings:
         f.page = min(max(f.page, 1), len(pages))
-    return raw_text, extract
-
-
-REPORT_NO_RE = re.compile(r"(?<![A-Za-z])INSP\s*-?\s*(\d{1,6})(?!\d)", re.IGNORECASE)
-
-
-def printed_report_id(*candidates: str | None) -> str | None:
-    """'INSP-004' from the printed report number (or the file name), normalised."""
-    for text in candidates:
-        m = REPORT_NO_RE.search(text or "")
-        if m:
-            return f"INSP-{m.group(1)}"
-    return None
+    return raw_text, result
 
 
 def inspection_id(
@@ -206,6 +305,7 @@ def ingest_scans(
     scans_dir: Path | None = None,
     vision: VisionFn | None = None,
     force: bool = False,
+    extract: ExtractFn | None = None,
 ) -> list[ScanReport]:
     """Read every scan in `scans_dir` into the inspections table. Idempotent by file path."""
     directory = scans_dir or get_settings().scans_dir
@@ -217,7 +317,7 @@ def ingest_scans(
             reports.append(ScanReport(file=path.name, status="skipped", inspection_id=existing[0]))
             continue
         try:
-            raw_text, ex = read_scan(path, vision)
+            raw_text, ex = read_scan(path, vision, extract)
             if not ex.tag:
                 raise ValueError("no equipment tag in the report or the file name")
             if not conn.execute("SELECT 1 FROM assets WHERE tag = ?", (ex.tag,)).fetchone():

@@ -218,3 +218,27 @@ def test_recover_tool_call_printed_as_text() -> None:
 def test_cited_refs_parsing() -> None:
     text = "See [S1], [S2, S3] and [INSP-P101-20261102]; [WO-0069] [not a ref] S9 bare."
     assert cited_refs(text) == ["S1", "S2", "S3", "INSP-P101-20261102", "WO-0069"]
+
+
+def test_fix_tool_citations_maps_tools_to_evidence_ids() -> None:
+    from types import SimpleNamespace
+
+    from app.agent.graph import cited_refs, fix_tool_citations
+
+    ctx = SimpleNamespace(inspections={"INSP-004": {"tag": "P-101"}})
+    text = (
+        "- Misalignment 0.3 mm [read_inspection]\n"
+        "- 9 seal events [get_asset_history]\n"
+        "- Shaft misalignment [read_inspection, S3, S2]\n"
+        "- Risk 0.99 [predict_risk]. Limit 0.05 mm [S3]. See [the manual](x)."
+    )
+    out = fix_tool_citations(text, ctx)
+    assert out == (
+        "- Misalignment 0.3 mm [INSP-004]\n"
+        "- 9 seal events\n"
+        "- Shaft misalignment [INSP-004, S3, S2]\n"
+        "- Risk 0.99. Limit 0.05 mm [S3]. See [the manual](x)."
+    )
+    assert cited_refs(out)[:3] == ["INSP-004", "S3", "S2"]
+    # nothing read -> the tool citation is simply dropped
+    assert fix_tool_citations("x [read_inspection]", SimpleNamespace(inspections={})) == "x"
