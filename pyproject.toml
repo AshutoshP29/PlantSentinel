@@ -52,6 +52,7 @@ known-first-party = [
     "check_no_ai_coauthor",
     "generate_synthetic",
     "make_demo_scans",
+    "seed_demo",
 ]
 
 [tool.ruff.format]

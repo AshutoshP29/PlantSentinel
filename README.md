@@ -47,6 +47,30 @@ commit-message policy check.
 Tests never need Ollama or a GPU. Tests that use a real model are marked
 `@pytest.mark.integration` and are skipped by default.
 
+## Seed the demo data
+
+One command loads everything the demo needs into a fresh database (about 15 s; safe to re-run):
+
+```powershell
+.\make.ps1 seed                      # or: uv run python scripts/seed_demo.py --reset
+.\make.ps1 seed --cluster live       # re-cluster with Ollama instead of the saved clusters (~80 s)
+```
+
+Inside the Compose stack: `docker compose run --rm backend python /app/scripts/seed_demo.py --reset`.
+
+| Step | What it does | Needs Ollama |
+|---|---|---|
+| data, scans | uses the committed synthetic CSVs and inspection images (regenerates if missing) | no |
+| database | schema, equipment register, 491 work orders | no |
+| clustering | failure modes from `clusters_fallback.json` (`--cluster live` to recompute) | live only |
+| risk model | trains XGBoost on AI4I if `models/risk_xgb.json` is missing (~10 s) | no |
+| manuals | indexes `data/docs/manuals` into ChromaDB | yes (warns if not) |
+| inspections | OCR of `data/scans` into `inspections` (once the pipeline exists) | yes (warns if not) |
+| verify | checks the planted story: P-101, C-203, E-302 are the top bad actors | no |
+
+The run fails if a required step fails or the story doesn't verify. The data ends on 2026-11-13;
+set `ANALYSIS_AS_OF=2026-11-14` in `.env` so the agent's "today" matches it.
+
 ## Run in containers
 
 Four services, defined in `docker-compose.yml`:

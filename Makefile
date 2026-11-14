@@ -1,5 +1,5 @@
 # Linux/macOS entry point. On Windows use: .\make.ps1 <target>
-.PHONY: setup lint format test hooks
+.PHONY: setup lint format test seed
 
 setup:
 	uv sync --group dev
@@ -16,4 +16,7 @@ format:
 test:
 	uv run pytest -m "not integration"
 
-# seed, dev, up, offline-check: added in later build steps
+seed:
+	uv run python scripts/seed_demo.py --reset $(ARGS)
+
+# dev, up, offline-check: added in later build steps
