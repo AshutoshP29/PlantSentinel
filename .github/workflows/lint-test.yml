@@ -1,0 +1,51 @@
+name: lint-test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --group dev
+      - name: Ruff check
+        run: uv run ruff check .
+      - name: Ruff format
+        run: uv run ruff format --check .
+      - name: Pytest
+        run: uv run pytest -m "not integration"
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for frontend
+        id: fe
+        run: |
+          if [ -f frontend/package.json ]; then echo "present=true" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.fe.outputs.present == 'true'
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: npm ci
+        if: steps.fe.outputs.present == 'true'
+        working-directory: frontend
+        run: npm ci
+      - name: npm run lint
+        if: steps.fe.outputs.present == 'true'
+        working-directory: frontend
+        run: npm run lint
+      - name: npm run build
+        if: steps.fe.outputs.present == 'true'
+        working-directory: frontend
+        run: npm run build

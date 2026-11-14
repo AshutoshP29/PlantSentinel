@@ -1,0 +1,15 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.5
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: no-ai-coauthor
+        name: no AI co-author trailers in commit message
+        entry: python scripts/check_no_ai_coauthor.py
+        language: python
+        stages: [commit-msg]
