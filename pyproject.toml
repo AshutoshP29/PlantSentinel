@@ -53,6 +53,7 @@ known-first-party = [
     "generate_synthetic",
     "make_demo_scans",
     "seed_demo",
+    "demo_check",
 ]
 
 [tool.ruff.format]

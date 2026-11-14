@@ -28,7 +28,7 @@ services:
         # Screens whose backend exists are live; the rest stay on demo data.
         # Everything live: VITE_USE_MOCK=false.
         VITE_USE_MOCK: ${VITE_USE_MOCK:-true}
-        VITE_LIVE: ${VITE_LIVE:-agent,assets,bad_actors,risk,work_orders,summary,failure_modes,mtbf,upload,privacy,audit}
+        VITE_LIVE: ${VITE_LIVE:-agent,assets,bad_actors,risk,work_orders,inspections,summary,failure_modes,mtbf,upload,privacy,audit,documents}
     ports:
       - "127.0.0.1:8080:80"
     volumes:

@@ -32,7 +32,17 @@ switch ($Target) {
         # Fresh demo database; add args after the target, e.g. .\make.ps1 seed --cluster live
         Invoke-Step "uv run python scripts/seed_demo.py --reset $($Rest -join ' ')"
     }
+    "demo-check" {
+        # Every demo beat (spec section 16) through the gateway, as the browser does.
+        Invoke-Step "uv run --offline python scripts/demo_check.py $($Rest -join ' ')"
+    }
+    "offline-check" {
+        # Run with Wi-Fi OFF: container isolation, then the full demo through the gateway.
+        $env:MSYS_NO_PATHCONV = "1"
+        Invoke-Step "docker compose exec -T backend python /app/scripts/check_isolation.py"
+        Invoke-Step "uv run --offline python scripts/demo_check.py $($Rest -join ' ')"
+    }
     default {
-        Write-Host "Targets: setup, lint, format, test, seed  (dev, up, offline-check come later)"
+        Write-Host "Targets: setup, lint, format, test, seed, demo-check, offline-check"
     }
 }
