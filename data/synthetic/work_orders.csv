@@ -1,0 +1,492 @@
+id,tag,date,description,action_taken,downtime_hrs,cost_inr
+WO-0001,C-205,2023-11-15,LO LEAKAGE AT FLANGE,LO cooler gasket changed,3.2,25300.0
+WO-0002,E-305,2023-11-22,PM ok.,no abnormality,1.8,6100.0
+WO-0003,E-304,2023-11-30,PM ok,greasing done,1.1,2200.0
+WO-0004,P-115,2023-11-30,"low discharge pressure, cavitation suspected",suction line flushed,2.4,9100.0
+WO-0005,C-202,2023-12-03,high vib trip,foundation bolts tightened,9.5,49300.0
+WO-0006,P-115,2023-12-04,preventive maintenance completed,greasing done,2.7,2600.0
+WO-0007,C-206,2023-12-08,"VALVE PASSING, LOW CAPACITY",valve plate replaced,10.6,132800.0
+WO-0008,P-109,2023-12-08,"P-109 low flow, impeller eroded",impeller and wear ring replaced,24.4,173000.0
+WO-0009,E-305,2023-12-09,high dp due to fouling,bundle hydrojetted,18.3,107800.0
+WO-0010,P-103,2023-12-10,seal leak hua,mechanical seal replaced,9.5,118700.0
+WO-0011,C-205,2023-12-15,lube oil leakage,"leak arrested, oil topped up",3.9,21900.0
+WO-0012,P-101,2023-12-15,"pump cavitating, low suction pressure",suction strainer cleaned,2.7,8000.0
+WO-0013,P-103,2023-12-20,"impeller worn, low head",impeller and wear ring replaced,19.7,187000.0
+WO-0014,C-203,2023-12-23,LO leakage at flange,LO cooler gasket changed,2.7,26600.0
+WO-0015,M-403,2023-12-23,M-403 PM ok - check karo,no abnormality,1.1,6000.0
+WO-0016,P-113,2023-12-24,PM ok,all parameters normal,1.6,3600.0
+WO-0017,P-113,2023-12-24,"Routine PM, rgeasing done",no abnormality,1.2,5900.0
+WO-0018,M-402,2023-12-28,O/l trip again aa gaya,starter contacts cleaned,2.0,10800.0
+WO-0019,P-105,2024-01-05,BEARING SOUND AA RAHA HAI,"new bearings fitted, greased",11.6,68600.0
+WO-0020,P-110,2024-01-09,PM ok..,all parameters normal,2.0,5800.0
+WO-0021,E-302,2024-01-13,"Routine PM, greasing done",no abnormality,2.3,4900.0
+WO-0022,P-105,2024-01-16,pm done,all parameters normal,1.6,7600.0
+WO-0023,P-110,2024-01-18,brg noise DE side,bearing replaced,14.0,70400.0
+WO-0024,P-110,2024-01-21,"pump cavitating, low suction pressure","NPSH checked, strainer cleaned",5.7,13100.0
+WO-0025,P-107,2024-01-25,"imepller worn, low head",impeller and wear ring replaced,18.7,189200.0
+WO-0026,E-303,2024-01-28,FLANGE GASKET LKG,gasket replaced,6.0,37200.0
+WO-0027,M-401,2024-01-29,winding insulation IR low !!,"cooling fan cleaned, IR checked",16.7,109300.0
+WO-0028,P-105,2024-01-30,"Cavitation noise, low flow","NPSH checked, strainer cleaned",4.7,20600.0
+WO-0029,P-106,2024-01-31,brg noise DE side !!,"new bearings fitted, greased",12.6,80600.0
+WO-0030,P-108,2024-02-02,"IMPELLER WORN, LOW HEAD",impeller replaced,17.9,169700.0
+WO-0031,C-203,2024-02-04,"valve passing, low capacity",valve overhauled,12.6,121300.0
+WO-0032,P-102,2024-02-04,mech seal lkg obsevred,mechanical seal replaced,13.1,62000.0
+WO-0033,M-401,2024-02-06,m-401 motor wniding temp high dekho !!,"cooling fan cleaned, IR checked",43.9,150800.0
+WO-0034,P-106,2024-02-07,"P106 cavitation noise, low flow","NPSH checked, strainer cleaned",2.4,23300.0
+WO-0035,E-301,2024-02-09,Gasket leakage at channel cover,gasket replaced,5.1,26000.0
+WO-0036,P-106,2024-02-09,seal leak hua,new seal fitted,8.3,92400.0
+WO-0037,P-105,2024-02-11,"Pump seal leaking, product dripping",replaced mech seal,14.0,127800.0
+WO-0038,P-109,2024-02-15,"cavitation noise, low flow..",suction strainer cleaned,3.1,11100.0
+WO-0039,P-107,2024-02-20,Brg failure on pump,replaced DE brg,19.7,74700.0
+WO-0040,P-114,2024-02-21,"P114 low flow, impeller eroded",impeller and wear ring replaced,13.8,152300.0
+WO-0041,P-115,2024-02-21,PM done - check karo,greasing done,2.4,3200.0
+WO-0042,P-102,2024-02-25,"low disch pressure, cavitation suspected",suction line flushed,3.3,20800.0
+WO-0043,E-305,2024-02-28,gasket leak hua !!,gasket replaced,9.1,21900.0
+WO-0044,P-107,2024-03-11,mech seal lkg,replaced mech seal,7.1,108600.0
+WO-0045,P-114,2024-03-12,"rotuine PM, greasing done",all parameters normal,2.8,6100.0
+WO-0046,P-111,2024-03-15,"low flow, impeller eroded",impeller replaced,25.7,177900.0
+WO-0047,P-101,2024-03-18,performance drop due to impeller wear dekho,impeller replaced,27.3,98900.0
+WO-0048,M-402,2024-03-28,m-402 motor tripped on overload,overload relay reset,1.5,4300.0
+WO-0049,E-303,2024-03-29,flange gasket lkg,gasket replaced,5.0,31700.0
+WO-0050,M-402,2024-03-31,winding insulation ir low..,"cooling fan cleaned, IR checked",45.8,178600.0
+WO-0051,P-111,2024-03-31,"acvitation noise, low flow",suction line flushed,3.0,11000.0
+WO-0052,C-202,2024-04-05,"routine pm, greasing done",all parameters normal,2.1,6800.0
+WO-0053,C-205,2024-04-08,PM done !!,no abnormality,1.7,6500.0
+WO-0054,P-101,2024-04-08,"p101 low disch pressure, cavitation suspected","NPSH checked, strainer cleaned",2.8,9600.0
+WO-0055,C-201,2024-04-16,brg temp badh gaya,"lube oil changed, bearing checked",11.1,200000.0
+WO-0056,P-113,2024-04-16,mech seal lkg..,replaced mech seal,6.3,96900.0
+WO-0057,P-112,2024-04-20,Bearing damaged,bearing replaced,18.7,87200.0
+WO-0058,C-206,2024-04-23,Suction valve broken,valve plate replaced,15.0,90400.0
+WO-0059,P-101,2024-04-24,"PUMP CAVITATING, LOW SUCTION PRESSURE",suction line flushed,2.7,17000.0
+WO-0060,C-203,2024-04-26,PM done,all parameters normal,1.1,6600.0
+WO-0061,P-110,2024-05-01,"cavitation noise, low flow",suction strainer cleaned,2.4,24000.0
+WO-0062,M-402,2024-05-03,winding insulation ir low,motor rewound,35.3,95400.0
+WO-0063,P-106,2024-05-05,Bearing soudn aa raha hai,replaced DE brg,12.9,63700.0
+WO-0064,P-107,2024-05-09,PM done,all parameters normal,1.1,7800.0
+WO-0065,P-112,2024-05-09,"low flow, imepller eroded.",impeller replaced,14.9,213900.0
+WO-0066,P-109,2024-05-10,"P109 low flow, impeller eroded..",impeller replaced,20.0,124700.0
+WO-0067,P-107,2024-05-12,"Low discharge pressure, cavitation suspected","NPSH checked, strainer cleaned",5.4,20100.0
+WO-0068,C-201,2024-05-13,C201 DISCHARGE VALVE PLATE CRACKDE,valve plate replaced,14.3,156700.0
+WO-0069,P-101,2024-05-13,mech seal lkg at P-101,replaced mech seal,9.4,101200.0
+WO-0070,P-114,2024-05-14,"PUMP SEAL LEAKING, PRODUCT DRIPPING",replaced mech seal,8.8,123000.0
+WO-0071,C-205,2024-05-16,high vib trip,"vibration analysis done, bolts tight",4.5,51300.0
+WO-0072,P-105,2024-05-17,Mech seal leakage observed,seal changed,12.6,80600.0
+WO-0073,C-203,2024-05-18,c-203 disch vlave plate cracked,suction valve replaced,15.0,83200.0
+WO-0074,P-104,2024-05-18,"LOW FLOW, IMPELLER ERODED",impeller and wear ring replaced,28.3,96000.0
+WO-0075,P-105,2024-05-19,"pump cavitating, low scution pr",suction strainer cleaned,3.6,22900.0
+WO-0076,P-105,2024-05-20,"p105 low disch pressure, cavitation suspected !!",suction strainer cleaned,2.3,21000.0
+WO-0077,P-111,2024-05-23,"low discharge pressure, cavitation suspected","NPSH checked, strainer cleaned",5.3,16400.0
+WO-0078,P-114,2024-05-23,P-114 bearing failure on pump,bearing replaced,9.2,54400.0
+WO-0079,C-204,2024-05-28,C204 PM done,no abnormality,1.5,2900.0
+WO-0080,M-401,2024-05-28,winding insulation ir low,"cooling fan cleaned, IR checked",19.5,89000.0
+WO-0081,P-110,2024-05-28,"low discharge pressure, cavitation suspected",suction strainer cleaned,4.7,12800.0
+WO-0082,P-103,2024-06-05,"bearing noisy, high vib",replaced DE brg,13.4,81600.0
+WO-0083,C-204,2024-06-06,high bearing temperature alarm,"lube oil changed, bearing checked",12.5,209900.0
+WO-0084,P-101,2024-06-06,"P101 impeller worn, low head",impeller and wear ring replaced,17.1,147000.0
+WO-0085,P-114,2024-06-07,Mech seal lkg,new seal fitted,8.1,112400.0
+WO-0086,P-103,2024-06-10,bearing failure on pump,replaced DE brg,15.9,44800.0
+WO-0087,P-115,2024-06-12,"p-115 cavitation noise, low flow",suction line flushed,4.1,16900.0
+WO-0088,P-108,2024-06-19,"CAVITATION NOISE, LOW FLOW..",suction line flushed,3.7,24400.0
+WO-0089,C-205,2024-06-21,suction valve broken,valve overhauled,13.9,71900.0
+WO-0090,M-404,2024-06-21,Motor winding temp high,motor sent for rewinding,16.5,98800.0
+WO-0091,P-105,2024-06-23,"cavitation noise, low flow.","NPSH checked, strainer cleaned",4.5,18000.0
+WO-0092,E-301,2024-07-03,"FOULING, POOR HEAT TRANSFER",chemical cleaning done,16.6,100800.0
+WO-0093,C-202,2024-07-04,C202 oil leak from LO cooler,LO cooler gasket changed,2.2,28000.0
+WO-0094,P-101,2024-07-06,performance drop due to impeller wear,impeller replaced,20.2,214000.0
+WO-0095,P-103,2024-07-06,"Beraing noisy, high vib",bearing replaced,8.9,88300.0
+WO-0096,P-103,2024-07-07,"ROUTINE PM, GREASING DONE",greasing done,2.2,6900.0
+WO-0097,E-301,2024-07-12,"E301 routine PM, greasing done hua",no abnormality,2.2,5000.0
+WO-0098,P-115,2024-07-13,P115 preventvie maintenance completed,greasing done,2.4,3800.0
+WO-0099,P-115,2024-07-13,pm ok.,all parameters normal,2.3,2900.0
+WO-0100,C-203,2024-07-14,LO lkg at flange,flange gasket replaced,4.6,18200.0
+WO-0101,M-403,2024-07-14,"routine pm, greasing done",no abnormality,1.8,6600.0
+WO-0102,M-404,2024-07-15,O/L TRIP,starter contacts cleaned,3.6,6600.0
+WO-0103,P-108,2024-07-15,"pump cavitating, low suction pressure",suction strainer cleaned,4.4,14800.0
+WO-0104,E-305,2024-07-17,"fouling, poor heat transfer",bundle hydrojetted,37.5,122600.0
+WO-0105,C-204,2024-07-18,LO LEAKAGE AT FLANGE AGAIN AA GAYA,LO cooler gasket changed,2.7,15300.0
+WO-0106,E-305,2024-07-20,E-305 preventive maintenance completed,greasing done,1.2,4800.0
+WO-0107,P-107,2024-07-21,"P107 pump cavitating, low suction pr !!",suction line flushed,3.0,10400.0
+WO-0108,P-102,2024-07-27,"low discharge pressure, cavitation suspected",suction strainer cleaned,3.7,24000.0
+WO-0109,P-103,2024-07-30,performance drop due to impeller wear,impeller and wear ring replaced,18.1,215500.0
+WO-0110,C-203,2024-08-02,"valve passing, low capacity.",valve overhauled,15.4,116500.0
+WO-0111,P-106,2024-08-02,PM done,no abnormality,1.7,6600.0
+WO-0112,P-115,2024-08-15,"low flow, impeller eroded",impeller and wear ring replaced,12.3,119200.0
+WO-0113,C-205,2024-08-16,vibration high on compressor,foundation bolts tightened,8.3,49400.0
+WO-0114,P-110,2024-08-19,preventive maintenance completed,greasing done,1.6,6200.0
+WO-0115,M-403,2024-08-21,"motor trip hua, reset kiya",overload relay reset,1.5,5700.0
+WO-0116,P-106,2024-08-22,"routnie PM, greasing done..",all parameters normal,1.3,4300.0
+WO-0117,C-202,2024-08-23,Discharge valve plate cracked,suction valve replaced,15.5,126900.0
+WO-0118,C-206,2024-08-24,oil leak from LO cooler..,"leak arrested, oil topped up",5.7,24700.0
+WO-0119,P-107,2024-08-25,Ebaring damaged,"new bearings fitted, greased",13.1,94300.0
+WO-0120,P-110,2024-08-25,p110 preventive maintenance completed,no abnormality,1.7,7700.0
+WO-0121,P-110,2024-08-27,BEARING SOUND AA RAHA HAI.,"new bearings fitted, greased",8.6,40400.0
+WO-0122,P-113,2024-08-27,"P113 pump cavitating, low suction pr",suction line flushed,2.3,18000.0
+WO-0123,P-106,2024-08-30,"CAVITATION NOISE, LOW FLOW",suction strainer cleaned,3.2,14400.0
+WO-0124,P-115,2024-09-03,"P115 cavitation noise, low flow",suction line flushed,2.2,15700.0
+WO-0125,E-303,2024-09-04,E303 gasket leak hua,"bolts retorqued, gasket changed",6.9,16600.0
+WO-0126,M-403,2024-09-04,motor winding temp high,"cooling fan cleaned, IR checked",39.2,95000.0
+WO-0127,P-106,2024-09-12,p-106 seal lkg,new seal fitted,9.7,105100.0
+WO-0128,M-402,2024-09-13,o/l trip,overload relay reset,3.9,13100.0
+WO-0129,M-401,2024-09-15,winding insulation ir low,motor rewound,35.2,128500.0
+WO-0130,M-402,2024-09-18,motor tripped on overload,overload relay reset,2.4,8000.0
+WO-0131,C-205,2024-09-21,SUCTION VALVE BROKEN - CHECK KARO,valve plate replaced,9.9,83600.0
+WO-0132,P-104,2024-09-21,"low flow, impeller eroded..",impeller replaced,21.5,149400.0
+WO-0133,P-102,2024-09-22,"routine pm, graesing done",all parameters normal,2.9,2100.0
+WO-0134,M-402,2024-09-24,Motor winding temp high hua,motor rewound,32.2,85900.0
+WO-0135,M-404,2024-09-30,PM done,greasing done,1.6,2200.0
+WO-0136,C-205,2024-10-08,Brg temp high,oil cooler cleaned,17.1,252100.0
+WO-0137,P-101,2024-10-10,"seal leaking, product dripping",seal changed,9.4,61600.0
+WO-0138,E-305,2024-10-11,PM done,greasing done,1.4,2400.0
+WO-0139,E-302,2024-10-19,pm ok,all parameters normal,1.1,4500.0
+WO-0140,P-106,2024-10-19,PM ok,all parameters normal,2.6,3400.0
+WO-0141,P-111,2024-10-24,"low flow, impeller eroded",impeller replaced,14.4,187500.0
+WO-0142,M-404,2024-10-25,motor tripped on overload,overload relay reset,3.5,11700.0
+WO-0143,P-115,2024-10-25,P115 bearing sound aa raha hai,replaced DE brg,12.6,42600.0
+WO-0144,P-106,2024-10-31,BEARING SOUND AA RAHA HAI,replaced DE brg,14.3,67700.0
+WO-0145,P-112,2024-11-02,P-112 SEAL LEAK HUA,replaced mech seal,13.6,91800.0
+WO-0146,P-108,2024-11-03,"low flow, impeller eroded",impeller and wear ring replaced,23.0,115000.0
+WO-0147,P-102,2024-11-05,bearing sound aa raha hai,"new bearings fitted, greased",15.9,72500.0
+WO-0148,P-107,2024-11-05,P107 BEARING FAILURE ON PUMP,replaced DE brg,13.6,108800.0
+WO-0149,P-109,2024-11-07,PM ok hua,greasing done,2.4,4400.0
+WO-0150,E-302,2024-11-12,e302 tube leak found in hydro test,leaking tubes plugged,60.4,403000.0
+WO-0151,M-401,2024-11-17,"motor trip hua, reset kiya",overload relay reset,2.7,5300.0
+WO-0152,C-203,2024-11-21,LO leakage at flange,flange gasket replaced,3.5,12600.0
+WO-0153,C-203,2024-11-21,c-203 lo leakage at flange,"leak arrested, oil topped up",4.0,12400.0
+WO-0154,P-109,2024-11-25,PM OK,no abnormality,2.1,7800.0
+WO-0155,P-109,2024-11-30,brg noise DE side,"new bearings fitted, greased",18.8,97900.0
+WO-0156,P-101,2024-12-08,performance drop due to impeller wear,impeller and wear ring replaced,26.5,201300.0
+WO-0157,C-205,2024-12-11,PM done,all parameters normal,1.5,4200.0
+WO-0158,C-203,2024-12-14,brg temp high C-203 NDE,oil cooler cleaned,23.6,156300.0
+WO-0159,M-401,2024-12-16,m-401 preventive maintenance completed..,greasing done,1.8,6600.0
+WO-0160,P-115,2024-12-17,P-115 PERFORMANCE DROP DUE TO IMPELLER WEAR,impeller and wear ring replaced,29.8,206100.0
+WO-0161,E-305,2024-12-18,E-305 gasket leak hua,gasket replaced,6.5,28100.0
+WO-0162,C-202,2024-12-21,"c-202 valve passing, low capacity",suction valve replaced,9.0,73700.0
+WO-0163,P-102,2024-12-27,seal leak hua,new seal fitted,8.6,129100.0
+WO-0164,E-305,2024-12-29,e305 pm ok,greasing done,2.4,2600.0
+WO-0165,C-206,2024-12-30,preventive maintenance ocmpleted,greasing done,2.7,2100.0
+WO-0166,E-301,2025-01-01,high dp due to foulign,bundle hydrojetted,18.7,100400.0
+WO-0167,P-109,2025-01-02,"low discharge pressure, cavitation suspected","NPSH checked, strainer cleaned",2.4,16700.0
+WO-0168,E-301,2025-01-03,"fouling, poor heat transfre",chemical cleaning done,25.7,63800.0
+WO-0169,E-305,2025-01-03,"routine pm, greasing done",no abnormality,2.3,4200.0
+WO-0170,P-113,2025-01-03,"P-113 impeller worn, low head",impeller replaced,21.6,215400.0
+WO-0171,P-112,2025-01-04,"pump cavitating, low suction pressure !!","NPSH checked, strainer cleaned",4.9,22400.0
+WO-0172,M-402,2025-01-12,Winding nisulation IR low..,motor sent for rewinding,28.8,86900.0
+WO-0173,M-402,2025-01-17,"Motor trip hua, reset kiya",overload relay reset,1.2,7100.0
+WO-0174,P-111,2025-01-17,"low discharge pressure, cavitation suspected.",suction strainer cleaned,5.2,17700.0
+WO-0175,P-115,2025-01-20,"PUMP SEAL LEAKING, RPODUCT DRIPPING",seal changed,12.2,109900.0
+WO-0176,P-101,2025-01-21,Performance drop due to impeller wear,impeller and wear ring replaced,19.9,157300.0
+WO-0177,E-302,2025-01-22,E302 gasket leakage at channel cover,gasket replaced,4.7,23300.0
+WO-0178,M-401,2025-01-24,M-401 motor tripped on overload,relay setting checked,2.7,8300.0
+WO-0179,P-102,2025-01-25,performance drop due to impeller wear !!,impeller and wear ring replaced,13.7,213800.0
+WO-0180,P-105,2025-01-30,"P-105 brg noisy, high vib",bearing replaced,9.3,100700.0
+WO-0181,P-109,2025-02-04,"Bearing noisy, high vib","new bearings fitted, greased",9.3,98000.0
+WO-0182,P-111,2025-02-04,"p111 low flow, imepller eroded",impeller and wear ring replaced,27.6,105300.0
+WO-0183,M-401,2025-02-08,PM DONE,greasing done,1.4,4200.0
+WO-0184,P-102,2025-02-08,P102 PM ok,all parameters normal,1.3,4800.0
+WO-0185,P-110,2025-02-10,"pump seal leaking, product dripping",mechanical seal replaced,7.6,78400.0
+WO-0186,C-202,2025-02-16,LO leakage at flange,flange gasket replaced,5.7,17800.0
+WO-0187,P-101,2025-02-17,brg noise de side !!,bearing replaced,10.7,103400.0
+WO-0188,P-114,2025-02-18,seal leaking - check karo.,new seal fitted,7.3,66000.0
+WO-0189,M-404,2025-02-19,winding insulation IR low,motor sent for rewinding,45.8,142500.0
+WO-0190,M-404,2025-02-20,winding insulation IR low.,motor sent for rewinding,37.0,246200.0
+WO-0191,C-205,2025-03-02,High vib trip,"vibration analysis done, bolts tight",9.9,53400.0
+WO-0192,P-110,2025-03-02,bearing sonud aa raha hai dekho.,bearing replaced,10.3,76900.0
+WO-0193,P-110,2025-03-02,brg noise DE side dekho,"new bearings fitted, greased",19.0,86100.0
+WO-0194,P-103,2025-03-03,preventive maintenance completed,all parameters normal,2.2,6800.0
+WO-0195,C-203,2025-03-05,suction valve broken,valve plate replaced,12.6,80600.0
+WO-0196,C-203,2025-03-06,"VALVE PASSING, LOW CAPACITY",valve overhauled,14.8,108100.0
+WO-0197,C-206,2025-03-07,HIGH VIB TRIP,foundation bolts tightened,11.6,85600.0
+WO-0198,P-109,2025-03-08,brg sound aa raha hai !!,"new bearings fitted, greased",10.7,61000.0
+WO-0199,P-101,2025-03-09,P101 mechanical seal leakage,new seal fitted,9.8,61800.0
+WO-0200,P-101,2025-03-10,brg damaged,"new bearings fitted, greased",14.8,62100.0
+WO-0201,E-305,2025-03-12,E-305 high dp due to fouling,bundle hydrojetted,36.1,127700.0
+WO-0202,P-105,2025-03-12,Brg failure on pump,bearing replaced,19.6,106400.0
+WO-0203,P-114,2025-03-15,"p114 pump cavitating, low suction pressure",suction line flushed,4.7,24500.0
+WO-0204,P-104,2025-03-18,performance drop due to impeller wear,impeller and wear ring replaced,18.9,176300.0
+WO-0205,P-104,2025-03-19,PERFORMANCE DROP DUE TO IMPELLER WEAR,impeller replaced,20.3,105300.0
+WO-0206,P-112,2025-03-19,P-112 brg damaged,bearing replaced,12.6,98700.0
+WO-0207,P-104,2025-03-22,pm ok,no abnormality,2.8,4800.0
+WO-0208,P-108,2025-03-22,"beairng noisy, high vib",bearing replaced,18.2,70200.0
+WO-0209,C-204,2025-03-24,oil leak from LO cooler,flange gasket replaced,2.5,11600.0
+WO-0210,P-110,2025-03-25,PREVENTIVE MAINTENANCE COMPLETED,all parameters normal,3.0,3100.0
+WO-0211,P-103,2025-03-28,bearing damaged,replaced DE brg,17.6,63800.0
+WO-0212,M-404,2025-03-29,"M-404 routine PM, greasing done.",no abnormality,2.1,2200.0
+WO-0213,P-110,2025-04-01,"low flow, impeller eroded",impeller and wear ring replaced,20.3,185300.0
+WO-0214,P-113,2025-04-01,P113 BEARING FAILURE ON PUMP,"new bearings fitted, greased",11.0,109600.0
+WO-0215,C-205,2025-04-04,"C-205 vibration alarm, unit tripped",rotor balanced,11.5,39500.0
+WO-0216,P-113,2025-04-06,P113 brg faliure on pump,"new bearings fitted, greased",11.0,72300.0
+WO-0217,E-305,2025-04-11,PM OK..,greasing done,1.3,4000.0
+WO-0218,M-404,2025-04-11,"M-404 motor overheating, tripped",motor sent for rewinding,36.4,245300.0
+WO-0219,C-204,2025-04-18,PM done,greasing done,1.7,6000.0
+WO-0220,C-204,2025-04-18,pm ok,all parameters normal,2.9,3500.0
+WO-0221,C-206,2025-04-27,PM ok,all parameters normal,2.1,3500.0
+WO-0222,P-115,2025-04-27,P115 performance drop due to impeller wear,impeller replaced,25.4,129900.0
+WO-0223,P-112,2025-04-28,"PUMP CAVITATING, LOW SUCTION PR","NPSH checked, strainer cleaned",5.2,12600.0
+WO-0224,M-403,2025-04-29,motor tripped on overload,overload relay reset,1.8,8000.0
+WO-0225,C-203,2025-05-01,c203 lo leakage at flange,"leak arrested, oil topped up",5.4,12700.0
+WO-0226,P-110,2025-05-03,Bearing failure on pump,bearing replaced,12.4,69000.0
+WO-0227,P-111,2025-05-05,"pump seal leaking, product dripping",replaced mech seal,8.8,127600.0
+WO-0228,C-205,2025-05-06,high vib trip,"vibration analysis done, bolts tight",6.2,68900.0
+WO-0229,P-101,2025-05-07,bearing sound aa raha hai,bearing replaced,9.8,93400.0
+WO-0230,C-202,2025-05-09,C202 high vib trip,foundation bolts tightened,11.4,65800.0
+WO-0231,P-114,2025-05-11,"P114 LOW DISCH PRESSURE, CAVITATION SUSPECTED DEKHO !!",suction line flushed,4.4,11400.0
+WO-0232,P-114,2025-05-12,"P114 pump cavitating, low suction pressure",suction strainer cleaned,4.6,14600.0
+WO-0233,P-113,2025-05-13,PM done,no abnormality,1.4,5600.0
+WO-0234,C-202,2025-05-14,C-202 high vib trip,"vibration analysis done, bolts tight",4.3,78800.0
+WO-0235,E-301,2025-05-14,gasket leak hua,"bolts retorqued, gasket changed",4.8,36200.0
+WO-0236,C-205,2025-05-18,C-205 oil leak from LO cooler,LO cooler gasket changed,4.8,19800.0
+WO-0237,P-111,2025-05-18,brg damgaed,replaced DE brg,11.9,40200.0
+WO-0238,P-110,2025-05-20,PM done,no abnormality,1.2,5300.0
+WO-0239,P-103,2025-05-21,bearing sound aa raha hai,bearing replaced,18.0,46100.0
+WO-0240,E-303,2025-05-26,"fouling, poor heat transfer !!",chemical cleaning done,29.2,84400.0
+WO-0241,M-403,2025-05-27,"motor overheating, tripped",motor sent for rewinding,22.4,163400.0
+WO-0242,M-404,2025-05-27,winding insulation IR low,"cooling fan cleaned, IR checked",22.0,210600.0
+WO-0243,P-108,2025-05-28,preventive maintenance completed,no abnormality,1.6,3700.0
+WO-0244,P-111,2025-05-29,mech seal lkg,new seal fitted,11.0,118100.0
+WO-0245,P-103,2025-06-02,Brg sound aa raha hai,"new bearings fitted, greased",13.7,89800.0
+WO-0246,P-114,2025-06-02,"Low discharge pressure, cavitation suspected","NPSH checked, strainer cleaned",2.6,17600.0
+WO-0247,P-102,2025-06-04,p102 pm ok,all parameters normal,1.2,2900.0
+WO-0248,P-112,2025-06-04,"p112 pump seal leaking, product drippign",mechanical seal replaced,12.0,83600.0
+WO-0249,P-102,2025-06-08,Bearing sound aa raha hai,replaced DE brg,8.5,70500.0
+WO-0250,P-102,2025-06-08,bearing failure on pump..,bearing replaced,15.0,108800.0
+WO-0251,C-204,2025-06-10,Disch valve plate cracked dekho,valve overhauled,14.9,139800.0
+WO-0252,E-302,2025-06-12,high dp due to fouling,bundle hydrojetted,35.3,116200.0
+WO-0253,E-305,2025-06-12,tube leak found in hydro test - check karo,tubes plugged after hydrotest,45.4,392400.0
+WO-0254,E-303,2025-06-17,"shell side contamination, tube leak",leaking tubes plugged,25.4,421000.0
+WO-0255,P-111,2025-06-17,mechanical seal lkg observed !!,new seal fitted,6.1,134400.0
+WO-0256,P-107,2025-06-18,PM DONE,all parameters normal,1.2,5800.0
+WO-0257,P-101,2025-06-21,"cavitation noise, low flow",suction strainer cleaned,3.2,24500.0
+WO-0258,E-301,2025-06-22,tube leak found in hydro test,tube bundle retubed,63.8,285500.0
+WO-0259,C-206,2025-06-26,PM done,all parameters normal,2.1,3200.0
+WO-0260,M-403,2025-06-26,O/L TRIP,relay setting checked,4.0,3800.0
+WO-0261,P-106,2025-06-29,"cavitaiton noise, low flow",suction line flushed,5.2,9200.0
+WO-0262,C-202,2025-06-30,Preventive maintenance completed,no abnormality,1.9,5200.0
+WO-0263,C-202,2025-07-02,C202 high bearing temp alarm,oil cooler cleaned,16.7,222700.0
+WO-0264,P-104,2025-07-07,preventive maintenance completed,no abnormality,1.4,5700.0
+WO-0265,P-107,2025-07-07,seal lkg hua,seal changed,6.3,111800.0
+WO-0266,E-305,2025-07-10,high dp due to fouling,chemical cleaning done,17.5,102600.0
+WO-0267,P-111,2025-07-16,GLAND SIDE LEAKAGE FROM MECH SEAL,mechanical seal replaced,10.1,93500.0
+WO-0268,P-104,2025-07-18,Bearing sound aa raha hai,"new bearings fitted, greased",12.5,105300.0
+WO-0269,P-108,2025-07-18,"impeller worn, low head",impeller and wear ring replaced,17.7,135300.0
+WO-0270,P-108,2025-07-19,gland side lkg from mech seal,seal changed,8.6,68800.0
+WO-0271,P-114,2025-07-22,"low discharge pressure, cavitation suspected",suction strainer cleaned,5.7,14900.0
+WO-0272,C-202,2025-07-23,C202 oil leak from LO cooler,"leak arrested, oil topped up",2.3,20100.0
+WO-0273,M-403,2025-07-25,"MOTOR TRIP HUA, RESET KIYA..",relay setting checked,3.9,13000.0
+WO-0274,P-101,2025-07-26,PM DONE,greasing done,1.2,2600.0
+WO-0275,M-402,2025-07-31,MOTOR WINDING TEMP HIGH,motor rewound,43.5,148900.0
+WO-0276,M-401,2025-08-05,motor tripped on overload..,starter contacts cleaned,3.4,5600.0
+WO-0277,P-101,2025-08-06,"seal leak hua, replaced",replaced mech seal,8.5,105600.0
+WO-0278,P-108,2025-08-06,"pump seal leaking, product dripping",mechanical seal replaced,11.8,106700.0
+WO-0279,P-113,2025-08-07,P113 seal leak hua,replaced mech seal,7.7,128500.0
+WO-0280,P-102,2025-08-11,"bearing noisy, high vib dekho","new bearings fitted, greased",14.9,90300.0
+WO-0281,E-303,2025-08-15,"fouling, poor heat transfer",chemical cleaning done,28.8,129600.0
+WO-0282,C-202,2025-08-16,LO lkg at flange,flange gasket replaced,5.6,24100.0
+WO-0283,P-101,2025-08-19,"Impeller worn, low head",impeller replaced,12.2,170800.0
+WO-0284,C-206,2025-08-20,Lube oil leakage,"leak arrested, oil topped up",2.6,10800.0
+WO-0285,P-104,2025-08-20,mech seal leakage observed,new seal fitted,6.4,101500.0
+WO-0286,C-206,2025-08-21,high bearing temperature alarm,bearing replaced,20.7,286700.0
+WO-0287,C-202,2025-08-23,C-202 PM done,all parameters normal,2.7,4100.0
+WO-0288,P-115,2025-08-30,"Low disch pressure, caviattion suspected !!",suction line flushed,5.3,13800.0
+WO-0289,C-205,2025-09-05,PM OK,no abnormality,1.4,2200.0
+WO-0290,M-403,2025-09-05,o/l trip,overload relay reset,2.6,7200.0
+WO-0291,P-106,2025-09-06,"pump seal leaking, product dripping",replaced mech seal,8.8,65900.0
+WO-0292,P-113,2025-09-07,PM done,greasing done,2.9,4200.0
+WO-0293,P-110,2025-09-09,PM ok,no abnormality,2.1,3000.0
+WO-0294,P-115,2025-09-10,"cavitation noise, low flow.",suction strainer cleaned,5.2,21600.0
+WO-0295,E-303,2025-09-12,"Shell side contamination, tube leak",tubes plugged after hydrotest,35.7,197700.0
+WO-0296,M-404,2025-09-14,motor winding temp high,motor sent for rewinding,40.5,114300.0
+WO-0297,P-108,2025-09-15,P108 performance drop due to impeller wear,impeller replaced,13.6,141100.0
+WO-0298,E-301,2025-09-19,flange gasket leaking,"bolts retorqued, gasket changed",8.1,37500.0
+WO-0299,P-115,2025-09-23,"Cavitation noise, low flow",suction line flushed,4.3,18600.0
+WO-0300,C-202,2025-09-24,PM done hua,greasing done,1.8,4700.0
+WO-0301,P-102,2025-09-25,seal leak hua,replaced mech seal,9.1,63100.0
+WO-0302,P-104,2025-09-27,"cavitation noise, low flow","NPSH checked, strainer cleaned",5.3,17400.0
+WO-0303,M-401,2025-09-29,M-401 winding insulation IR low,motor rewound,29.5,99700.0
+WO-0304,P-106,2025-09-30,brg noise de side,"new bearings fitted, greased",18.5,63300.0
+WO-0305,E-301,2025-10-01,"ROUTINE PM, GREASING DONE",all parameters normal,2.5,4700.0
+WO-0306,E-302,2025-10-01,PM ok,all parameters normal,2.4,5300.0
+WO-0307,E-302,2025-10-01,preventive maintenance completed,greasing done,3.0,5800.0
+WO-0308,P-109,2025-10-01,p109 mechanical seal leakage observed,seal changed,7.3,96700.0
+WO-0309,C-203,2025-10-08,C-203 PM done,all parameters normal,1.9,2400.0
+WO-0310,P-107,2025-10-08,performance drop due to impeller wear,impeller replaced,13.1,190900.0
+WO-0311,C-203,2025-10-10,bearing overheating,lube oil changed,18.9,295300.0
+WO-0312,C-204,2025-10-10,discharge valve plate cracked,valve plate replaced,13.4,90700.0
+WO-0313,P-106,2025-10-10,"IMPELLER WORN, LOW HEAD",impeller and wear ring replaced,18.3,214600.0
+WO-0314,C-205,2025-10-15,brg temp badh gaya,"lube oil changed, bearing checked",10.8,259600.0
+WO-0315,C-204,2025-10-17,High brg temperature alarm,oil cooler cleaned,11.8,223700.0
+WO-0316,M-402,2025-10-19,"M402 ROUTINE PM, GREASING DONE..",no abnormality,2.9,7600.0
+WO-0317,P-114,2025-10-19,P114 gland side leakage from mech seal,new seal fitted,10.6,78900.0
+WO-0318,C-203,2025-10-20,PM ok,all parameters normal,2.9,2600.0
+WO-0319,P-109,2025-10-23,"P109 brg noisy, high vib",bearing replaced,10.9,44700.0
+WO-0320,C-206,2025-10-28,C206 lube oil lkg hua,LO cooler gasket changed,4.5,18800.0
+WO-0321,M-403,2025-10-28,preventive maintenance completed,greasing done,1.3,3800.0
+WO-0322,E-305,2025-11-03,"E-305 FOULING, POOR HEAT TRANSFER",bundle hydrojetted,38.8,117400.0
+WO-0323,P-107,2025-11-06,"Impeller worn, low head",impeller replaced,19.0,151100.0
+WO-0324,C-204,2025-11-07,"valve passing, low capacity",suction valve replaced,14.6,76800.0
+WO-0325,E-302,2025-11-08,tube leakage,leaking tubes plugged,58.0,443800.0
+WO-0326,E-302,2025-11-08,tube leakage,tube bundle retubed,40.8,391800.0
+WO-0327,P-110,2025-11-09,"Low flow, impeller eroded",impeller replaced,17.4,197600.0
+WO-0328,M-403,2025-11-13,Motor winding temp high,motor rewound,39.5,181800.0
+WO-0329,M-402,2025-11-15,M-402 PM done,no abnormality,1.0,5200.0
+WO-0330,P-105,2025-11-17,SEAL ELAKING..,seal changed,10.1,68700.0
+WO-0331,C-203,2025-11-18,LUBE OIL LKG,LO cooler gasket changed,3.6,28400.0
+WO-0332,P-113,2025-11-18,PM DONE,greasing done,2.1,3100.0
+WO-0333,P-113,2025-11-18,PM DONE,no abnormality,1.7,3100.0
+WO-0334,E-304,2025-11-21,E-304 flange gasket lkg..,"bolts retorqued, gasket changed",9.8,18400.0
+WO-0335,M-404,2025-11-23,M404 WINDING INSULATION IR LOW,"cooling fan cleaned, IR checked",38.5,196800.0
+WO-0336,C-204,2025-11-27,C-204 PM ok,all parameters normal,2.5,3300.0
+WO-0337,C-205,2025-11-29,"routine PM, greasing done",all parameters normal,2.0,5300.0
+WO-0338,C-203,2025-12-02,LO lkg at flange,LO cooler gasket changed,4.2,19700.0
+WO-0339,P-105,2025-12-03,"pump cavitating, low suciton pressure",suction line flushed,5.8,9800.0
+WO-0340,P-108,2025-12-03,"low flow, impeller eroded",impeller replaced,19.0,148500.0
+WO-0341,M-404,2025-12-04,preventive maintenance completed,greasing done,1.7,4100.0
+WO-0342,P-105,2025-12-06,PM done,all parameters normal,2.2,5900.0
+WO-0343,P-109,2025-12-06,Performance drop due to impeller wear,impeller and wear ring replaced,19.5,161400.0
+WO-0344,P-105,2025-12-07,preventive mainetnance completed !!,no abnormality,1.3,5800.0
+WO-0345,P-112,2025-12-09,"routine pm, greasing done",greasing done,3.0,6700.0
+WO-0346,M-402,2025-12-12,"MOTOR TRIP HUA, RESET KIYA",relay setting checked,2.6,6600.0
+WO-0347,P-114,2025-12-13,brg damaged,bearing replaced,9.8,88800.0
+WO-0348,P-107,2025-12-18,bearing failure on pump !!,"new bearings fitted, greased",17.1,49300.0
+WO-0349,P-115,2025-12-18,"IMPELLER WORN, LOW HEAD !!",impeller replaced,16.1,204000.0
+WO-0350,C-201,2025-12-19,C201 PM DONE,no abnormality,1.2,7100.0
+WO-0351,E-301,2025-12-19,E-301 tube leakage,tube bundle retubed,69.6,216800.0
+WO-0352,P-114,2025-12-19,PM done !!,all parameters normal,1.1,3200.0
+WO-0353,C-203,2025-12-29,discharge valve plate cracked,valve overhauled,10.8,148100.0
+WO-0354,E-303,2025-12-30,E-303 preventive maintenance completed,all parameters normal,2.6,6500.0
+WO-0355,P-104,2026-01-01,"Cavitation noise, low flow",suction strainer cleaned,4.5,23700.0
+WO-0356,P-108,2026-01-01,"bearing noisy, high vib",replaced DE brg,9.8,88300.0
+WO-0357,E-301,2026-01-02,"shell side contamination, tube leak",tubes plugged after hydrotest,61.8,306200.0
+WO-0358,P-102,2026-01-02,PM ok,greasing done,2.1,6400.0
+WO-0359,P-101,2026-01-03,Mech seal leaking DE side,seal changed,8.6,67800.0
+WO-0360,P-105,2026-01-03,PERFORMANCE DROP DUE TO IMPELLER WEAR,impeller replaced,19.7,205500.0
+WO-0361,E-305,2026-01-07,"E305 FOULING, POOR HEAT TRANSFER",bundle hydrojetted,17.3,101800.0
+WO-0362,E-303,2026-01-08,tube lkg,tube bundle retubed,53.6,243700.0
+WO-0363,P-111,2026-01-08,seal leak hua,mechanical seal replaced,9.9,71200.0
+WO-0364,P-107,2026-01-13,mech seal lkg - check karo,mechanical seal replaced,6.3,133400.0
+WO-0365,C-206,2026-01-14,"routine PM, greasing done",all parameters normal,2.1,3100.0
+WO-0366,P-110,2026-01-19,PERFORMANCE DROP DUE TO IMPELLER WEAR,impeller replaced,21.0,216700.0
+WO-0367,C-202,2026-01-23,preventive maintenance completed,all parameters normal,2.3,7700.0
+WO-0368,C-202,2026-01-24,"routine PM, greasing done dekho",no abnormality,1.8,5900.0
+WO-0369,C-206,2026-01-27,c206 oil leak from lo cooler,flange gasket replaced,3.3,19500.0
+WO-0370,P-109,2026-01-27,gland side lkg from mech seal,new seal fitted,10.3,125900.0
+WO-0371,E-304,2026-01-30,"Outlet temp low, tubes fouled",chemical cleaning done,19.3,110000.0
+WO-0372,P-114,2026-01-31,preformance drop due to impeller wear,impeller replaced,26.6,106400.0
+WO-0373,C-206,2026-02-09,C-206 vib high on compressor,rotor balanced,9.2,41800.0
+WO-0374,P-102,2026-02-10,seal lkg,mechanical seal replaced,7.4,136600.0
+WO-0375,C-202,2026-02-18,high vib trip,"vibration analysis done, bolts tight",8.2,89800.0
+WO-0376,C-204,2026-02-20,PM done,all parameters normal,2.3,3600.0
+WO-0377,P-104,2026-03-03,"pump seal leaking, product dripping",new seal fitted,11.2,128100.0
+WO-0378,E-301,2026-03-11,flange gasket lkg,gasket replaced,4.6,19600.0
+WO-0379,E-304,2026-03-15,Flange gasket leaking,"bolts retorqued, gasket changed",6.3,20600.0
+WO-0380,P-111,2026-03-15,"imepller worn, low head",impeller and wear ring replaced,13.8,183900.0
+WO-0381,P-103,2026-03-16,"low discharge pressure, cavitation suspected",suction line flushed,6.0,13200.0
+WO-0382,C-202,2026-03-18,LO leakage at flange,flange gasket replaced,3.5,11100.0
+WO-0383,P-109,2026-03-19,"beairng noisy, high vib",bearing replaced,8.1,79800.0
+WO-0384,P-105,2026-03-22,P105 bearing sound aa raha hai,replaced DE brg,8.4,65900.0
+WO-0385,P-112,2026-03-22,"routine pm, greasing done..",no abnormality,2.0,7400.0
+WO-0386,P-109,2026-03-24,mechanical seal lkg observed,mechanical seal replaced,11.2,87800.0
+WO-0387,C-201,2026-03-27,LO leakage at flange,flange gasket replaced,3.7,21800.0
+WO-0388,P-111,2026-03-28,"P-111 ROUTINE PM, GREASING DONE",greasing done,1.3,6600.0
+WO-0389,P-105,2026-03-30,brg noise DE side,"new bearings fitted, greased",13.8,99300.0
+WO-0390,P-101,2026-03-31,"cavitation noise, low flow..",suction line flushed,3.4,22600.0
+WO-0391,C-202,2026-04-01,PM done,no abnormality,2.5,2900.0
+WO-0392,M-401,2026-04-05,"motor overheating, tripped","cooling fan cleaned, IR checked",31.7,134700.0
+WO-0393,P-111,2026-04-06,"IMPELLER WORN, LOW HEAD !!",impeller and wear ring replaced,17.9,149500.0
+WO-0394,P-111,2026-04-06,"P111 low flow, impeller eroded",impeller replaced,20.1,145800.0
+WO-0395,C-203,2026-04-11,Suction valve broken,suction valve replaced,12.6,108300.0
+WO-0396,P-111,2026-04-12,"Low dishc pressure, cavitation suspected",suction strainer cleaned,4.8,21900.0
+WO-0397,E-301,2026-04-13,e-301 gasket leakage at channel cover,gasket replaced,8.4,34100.0
+WO-0398,E-305,2026-04-17,gasket leak hua !!,"bolts retorqued, gasket changed",6.8,31900.0
+WO-0399,C-201,2026-04-19,C-201 BEARING OVERHEATING,oil cooler cleaned,21.9,273300.0
+WO-0400,P-113,2026-04-20,"P-113 pump seal leaking, product dripping dekho",new seal fitted,13.1,62800.0
+WO-0401,E-303,2026-04-23,Preventive maintenance completed,greasing done,1.1,7400.0
+WO-0402,P-113,2026-04-23,performance drop due to impeller wear,impeller and wear ring replaced,17.7,125400.0
+WO-0403,P-114,2026-04-24,"bearing noisy, high vib",bearing replaced,9.0,78900.0
+WO-0404,P-110,2026-04-28,"impeller worn, low head",impeller and wear ring replaced,12.5,125500.0
+WO-0405,C-201,2026-04-29,"VIB ALARM, UNIT TRIPPED",rotor balanced,6.2,53100.0
+WO-0406,C-201,2026-04-30,bearing overheating,"lube oil changed, bearing checked",16.8,207900.0
+WO-0407,C-201,2026-05-05,C-201 brg temp high,bearing replaced,17.3,243900.0
+WO-0408,M-402,2026-05-08,PREVENTIVE MAINTENANCE COMPLETED,greasing done,1.0,5700.0
+WO-0409,P-111,2026-05-12,BRG DAMAGED,replaced DE brg,10.0,72000.0
+WO-0410,M-401,2026-05-13,preventive maintenance completed.,no abnormality,1.5,4500.0
+WO-0411,M-402,2026-05-14,o/l trip,relay setting checked,2.1,6500.0
+WO-0412,P-107,2026-05-16,"Impeller worn, low head.",impeller and wear ring replaced,15.1,182700.0
+WO-0413,P-107,2026-05-16,"low discharge pressure, cavitation suspected",suction line flushed,6.0,12700.0
+WO-0414,P-109,2026-05-17,p109 gland side leakage from mech seal,replaced mech seal,7.1,139500.0
+WO-0415,P-107,2026-05-24,PM ok,no abnormality,2.5,2800.0
+WO-0416,P-111,2026-05-26,"P111 low disch pressure, cavitation suspected again aa gaya","NPSH checked, strainer cleaned",3.6,16400.0
+WO-0417,E-302,2026-05-28,"E-302 outlet temp low, fouled",chemical cleaning done,39.0,124600.0
+WO-0418,C-206,2026-05-29,vibrtaion high on compressor,rotor balanced,11.9,42900.0
+WO-0419,E-303,2026-05-30,e303 preventive maintenance completed,all parameters normal,1.6,7700.0
+WO-0420,P-105,2026-05-31,seal leak hua,mechanical seal replaced,11.5,97900.0
+WO-0421,P-109,2026-05-31,"pump cavitating, low suction pressure dekho..",suction strainer cleaned,5.0,17800.0
+WO-0422,P-103,2026-06-01,mech seal lkg observed,mechanical seal replaced,7.7,98700.0
+WO-0423,P-101,2026-06-02,P-101 seal leaking again,replaced mech seal,9.9,115300.0
+WO-0424,P-111,2026-06-06,"impeller worn, low head",impeller and wear ring replaced,14.9,211300.0
+WO-0425,C-206,2026-06-09,PM done,no abnormality,1.7,4100.0
+WO-0426,C-202,2026-06-16,C202 PM done,all parameters normal,2.3,2600.0
+WO-0427,C-203,2026-06-17,C203 brg temp high alarm,lube oil changed,11.1,273100.0
+WO-0428,P-108,2026-06-23,"pump cavitating, low suction pr","NPSH checked, strainer cleaned",2.5,14300.0
+WO-0429,E-305,2026-06-28,"outlet temp low, tubes fouled",tubes cleaned,34.5,89100.0
+WO-0430,C-205,2026-07-04,LUBE OIL LKG,flange gasket replaced,3.5,29500.0
+WO-0431,E-302,2026-07-06,gasket lkg at channel cover,gasket replaced,4.7,33200.0
+WO-0432,P-108,2026-07-07,performance drop due to impeller wear,impeller and wear ring replaced,21.5,130800.0
+WO-0433,C-201,2026-07-10,"vibration alarm, unit tripped","vibration analysis done, bolts tight",11.7,47500.0
+WO-0434,P-114,2026-07-10,brg noise DE side,replaced DE brg,18.7,63200.0
+WO-0435,E-301,2026-07-16,pm ok,all parameters normal,2.3,6900.0
+WO-0436,M-401,2026-07-16,Winding insulation IR low,motor rewound,34.0,86400.0
+WO-0437,C-204,2026-07-17,oil leak from LO cooler,flange gasket replaced,4.0,14000.0
+WO-0438,E-305,2026-07-17,gasket leak hua,"bolts retorqued, gasket changed",4.9,36800.0
+WO-0439,P-103,2026-07-20,"PUMP CAVITATING, LOW SUCTION PRESSURE !!","NPSH checked, strainer cleaned",2.3,12200.0
+WO-0440,E-303,2026-07-22,tube leak found in hydro test,tube bundle retubed,63.2,389000.0
+WO-0441,P-101,2026-07-22,"mech seal lkg again, slight vib at coupling end",mechanical seal replaced,7.6,99700.0
+WO-0442,M-403,2026-07-26,"motor trip hua, reset kiya",relay setting checked,2.5,9900.0
+WO-0443,P-105,2026-07-28,"P-105 LOW FLOW, IMPELLER ERODED",impeller and wear ring replaced,29.4,194600.0
+WO-0444,C-203,2026-07-29,LO lkg at flange,flange gasket replaced,2.7,17200.0
+WO-0445,C-203,2026-07-29,"vib alarm, unit tripped","vibration analysis done, bolts tight",7.4,82500.0
+WO-0446,C-206,2026-07-30,BEARING OVERHEATING,"lube oil changed, bearing checked",20.2,223700.0
+WO-0447,E-302,2026-08-06,"fouling again, poor heat transfer",bundle hydrojetted,29.9,113300.0
+WO-0448,E-303,2026-08-07,PM done,greasing done,1.1,2700.0
+WO-0449,C-204,2026-08-09,PM ok.,all parameters normal,2.6,4000.0
+WO-0450,C-203,2026-08-11,bearing overheating again,bearing replaced,13.0,167700.0
+WO-0451,P-114,2026-08-12,pm ok,greasing done,2.5,6100.0
+WO-0452,M-404,2026-08-15,Winding insulation IR low,motor rewound,47.7,229600.0
+WO-0453,P-110,2026-08-15,"pump cavitating, low suction pr !!","NPSH checked, strainer cleaned",5.2,20100.0
+WO-0454,M-404,2026-08-17,O/L TRIP,starter contacts cleaned,2.7,9500.0
+WO-0455,C-204,2026-08-19,C204 brg temp high,oil cooler cleaned,22.2,208300.0
+WO-0456,C-203,2026-08-23,PM ok,all parameters normal,2.0,6200.0
+WO-0457,P-111,2026-08-25,bearing sound aa raha hai,bearing replaced,17.1,70900.0
+WO-0458,P-110,2026-08-26,"p110 routine pm, greasing done",greasing done,1.9,4600.0
+WO-0459,P-104,2026-08-31,Bearing damaged,bearing replaced,8.3,84100.0
+WO-0460,P-104,2026-08-31,Performance drop due to impeller wear,impeller and wear ring replaced,21.9,139900.0
+WO-0461,P-112,2026-09-06,"Low flow, impeller eroded",impeller replaced,17.6,156500.0
+WO-0462,P-107,2026-09-09,pm done,no abnormality,1.7,7600.0
+WO-0463,C-204,2026-09-10,vib high on compressro,"vibration analysis done, bolts tight",7.9,44600.0
+WO-0464,P-102,2026-09-13,"cavitation noise, low flow","NPSH checked, strainer cleaned",5.0,22300.0
+WO-0465,P-101,2026-09-15,SEAL LEAK HUA PHIR SE P-101,seal replaced again,12.5,113400.0
+WO-0466,M-402,2026-09-19,preventive maintenance completed,all parameters normal,2.3,6800.0
+WO-0467,P-104,2026-09-20,"Low discharge pressure, cavitation suspected",suction line flushed,3.1,8000.0
+WO-0468,C-201,2026-09-21,"Valve passing, low capacity.",valve overhauled,10.7,139100.0
+WO-0469,P-112,2026-09-22,brg niose de side hua,bearing replaced,14.6,104000.0
+WO-0470,C-202,2026-09-29,"routine pm, greasing done",all parameters normal,2.7,7100.0
+WO-0471,C-202,2026-10-02,Suction valve broken.,valve plate replaced,13.4,139600.0
+WO-0472,E-302,2026-10-05,high DP E302 fouling,tubes cleaned,22.6,111000.0
+WO-0473,P-112,2026-10-06,pm done,greasing done,1.2,4700.0
+WO-0474,C-204,2026-10-08,preventive maintenance completed,all parameters normal,1.3,3300.0
+WO-0475,P-107,2026-10-13,"P-107 low flow, impeller eroded",impeller replaced,17.9,128400.0
+WO-0476,P-102,2026-10-14,P102 GLAND SIDE LEAKAGE FROM MECH SEAL,seal changed,11.0,113100.0
+WO-0477,P-113,2026-10-14,P-113 bearing damaged,replaced DE brg,8.9,79700.0
+WO-0478,C-203,2026-10-15,"brg temp badh gaya, trip",bearing checked,14.2,223200.0
+WO-0479,C-205,2026-10-16,C-205 high vib trip,foundation bolts tightened,5.9,56000.0
+WO-0480,E-301,2026-10-22,gasket leak hua,"bolts retorqued, gasket changed",4.3,19300.0
+WO-0481,C-206,2026-10-23,suction valve broken,valve plate replaced,13.4,108100.0
+WO-0482,P-103,2026-10-24,P-103 brg sonud aa raha hai.,bearing replaced,14.6,88800.0
+WO-0483,M-403,2026-10-26,Winding insulation IR low,motor rewound,41.5,237000.0
+WO-0484,M-402,2026-10-28,motor winding temp high,motor sent for rewinding,40.8,240700.0
+WO-0485,E-302,2026-11-02,tube leakage,tube bundle retubed,36.5,322500.0
+WO-0486,P-101,2026-11-02,P-101 mech seal failed again within 2 months,"replaced mech seal, RCA requested",7.3,84000.0
+WO-0487,P-107,2026-11-03,Mech seal leakage observed,replaced mech seal,8.1,80800.0
+WO-0488,P-101,2026-11-05,"P101 impeller worn, low head",impeller and wear ring replaced,16.3,121300.0
+WO-0489,E-303,2026-11-11,E303 GASKET LEAKAGE AT CHANNEL COVER,"bolts retorqued, gasket changed",6.8,38700.0
+WO-0490,P-102,2026-11-12,PM DONE,greasing done,1.4,3600.0
+WO-0491,P-115,2026-11-13,Performance drop due to impeller wear,impeller replaced,17.3,151200.0

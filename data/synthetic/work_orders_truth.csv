@@ -1,0 +1,492 @@
+id,true_mode,planted,duplicate
+WO-0001,Lube oil leak,False,False
+WO-0002,Routine maintenance,False,False
+WO-0003,Routine maintenance,False,False
+WO-0004,Cavitation,False,False
+WO-0005,High vibration,False,False
+WO-0006,Routine maintenance,False,False
+WO-0007,Compressor valve failure,False,False
+WO-0008,Impeller wear,False,False
+WO-0009,Tube fouling,False,False
+WO-0010,Mechanical seal leakage,False,False
+WO-0011,Lube oil leak,False,False
+WO-0012,Cavitation,False,False
+WO-0013,Impeller wear,False,False
+WO-0014,Lube oil leak,False,False
+WO-0015,Routine maintenance,False,False
+WO-0016,Routine maintenance,False,False
+WO-0017,Routine maintenance,False,True
+WO-0018,Motor trip,False,False
+WO-0019,Pump bearing failure,False,False
+WO-0020,Routine maintenance,False,False
+WO-0021,Routine maintenance,False,False
+WO-0022,Routine maintenance,False,False
+WO-0023,Pump bearing failure,False,False
+WO-0024,Cavitation,False,False
+WO-0025,Impeller wear,False,False
+WO-0026,Gasket leak,False,False
+WO-0027,Motor winding overheating,False,False
+WO-0028,Cavitation,False,False
+WO-0029,Pump bearing failure,False,False
+WO-0030,Impeller wear,False,False
+WO-0031,Compressor valve failure,False,False
+WO-0032,Mechanical seal leakage,False,False
+WO-0033,Motor winding overheating,False,False
+WO-0034,Cavitation,False,False
+WO-0035,Gasket leak,False,False
+WO-0036,Mechanical seal leakage,False,False
+WO-0037,Mechanical seal leakage,False,False
+WO-0038,Cavitation,False,False
+WO-0039,Pump bearing failure,False,False
+WO-0040,Impeller wear,False,False
+WO-0041,Routine maintenance,False,False
+WO-0042,Cavitation,False,False
+WO-0043,Gasket leak,False,False
+WO-0044,Mechanical seal leakage,False,False
+WO-0045,Routine maintenance,False,False
+WO-0046,Impeller wear,False,False
+WO-0047,Impeller wear,False,False
+WO-0048,Motor trip,False,False
+WO-0049,Gasket leak,False,False
+WO-0050,Motor winding overheating,False,False
+WO-0051,Cavitation,False,False
+WO-0052,Routine maintenance,False,False
+WO-0053,Routine maintenance,False,False
+WO-0054,Cavitation,False,False
+WO-0055,Compressor bearing overheating,False,False
+WO-0056,Mechanical seal leakage,False,False
+WO-0057,Pump bearing failure,False,False
+WO-0058,Compressor valve failure,False,False
+WO-0059,Cavitation,False,False
+WO-0060,Routine maintenance,False,False
+WO-0061,Cavitation,False,False
+WO-0062,Motor winding overheating,False,False
+WO-0063,Pump bearing failure,False,False
+WO-0064,Routine maintenance,False,False
+WO-0065,Impeller wear,False,False
+WO-0066,Impeller wear,False,False
+WO-0067,Cavitation,False,False
+WO-0068,Compressor valve failure,False,False
+WO-0069,Mechanical seal leakage,True,False
+WO-0070,Mechanical seal leakage,False,False
+WO-0071,High vibration,False,False
+WO-0072,Mechanical seal leakage,False,False
+WO-0073,Compressor valve failure,False,False
+WO-0074,Impeller wear,False,False
+WO-0075,Cavitation,False,False
+WO-0076,Cavitation,False,False
+WO-0077,Cavitation,False,False
+WO-0078,Pump bearing failure,False,False
+WO-0079,Routine maintenance,False,False
+WO-0080,Motor winding overheating,False,False
+WO-0081,Cavitation,False,False
+WO-0082,Pump bearing failure,False,False
+WO-0083,Compressor bearing overheating,False,False
+WO-0084,Impeller wear,False,False
+WO-0085,Mechanical seal leakage,False,False
+WO-0086,Pump bearing failure,False,False
+WO-0087,Cavitation,False,False
+WO-0088,Cavitation,False,False
+WO-0089,Compressor valve failure,False,False
+WO-0090,Motor winding overheating,False,False
+WO-0091,Cavitation,False,False
+WO-0092,Tube fouling,False,False
+WO-0093,Lube oil leak,False,False
+WO-0094,Impeller wear,False,False
+WO-0095,Pump bearing failure,False,False
+WO-0096,Routine maintenance,False,False
+WO-0097,Routine maintenance,False,False
+WO-0098,Routine maintenance,False,False
+WO-0099,Routine maintenance,False,True
+WO-0100,Lube oil leak,False,False
+WO-0101,Routine maintenance,False,False
+WO-0102,Motor trip,False,False
+WO-0103,Cavitation,False,False
+WO-0104,Tube fouling,False,False
+WO-0105,Lube oil leak,False,False
+WO-0106,Routine maintenance,False,False
+WO-0107,Cavitation,False,False
+WO-0108,Cavitation,False,False
+WO-0109,Impeller wear,False,False
+WO-0110,Compressor valve failure,False,False
+WO-0111,Routine maintenance,False,False
+WO-0112,Impeller wear,False,False
+WO-0113,High vibration,False,False
+WO-0114,Routine maintenance,False,False
+WO-0115,Motor trip,False,False
+WO-0116,Routine maintenance,False,False
+WO-0117,Compressor valve failure,False,False
+WO-0118,Lube oil leak,False,False
+WO-0119,Pump bearing failure,False,False
+WO-0120,Routine maintenance,False,False
+WO-0121,Pump bearing failure,False,False
+WO-0122,Cavitation,False,False
+WO-0123,Cavitation,False,False
+WO-0124,Cavitation,False,False
+WO-0125,Gasket leak,False,False
+WO-0126,Motor winding overheating,False,False
+WO-0127,Mechanical seal leakage,False,False
+WO-0128,Motor trip,False,False
+WO-0129,Motor winding overheating,False,False
+WO-0130,Motor trip,False,False
+WO-0131,Compressor valve failure,False,False
+WO-0132,Impeller wear,False,False
+WO-0133,Routine maintenance,False,False
+WO-0134,Motor winding overheating,False,False
+WO-0135,Routine maintenance,False,False
+WO-0136,Compressor bearing overheating,False,False
+WO-0137,Mechanical seal leakage,True,False
+WO-0138,Routine maintenance,False,False
+WO-0139,Routine maintenance,False,False
+WO-0140,Routine maintenance,False,False
+WO-0141,Impeller wear,False,False
+WO-0142,Motor trip,False,False
+WO-0143,Pump bearing failure,False,False
+WO-0144,Pump bearing failure,False,False
+WO-0145,Mechanical seal leakage,False,False
+WO-0146,Impeller wear,False,False
+WO-0147,Pump bearing failure,False,False
+WO-0148,Pump bearing failure,False,False
+WO-0149,Routine maintenance,False,False
+WO-0150,Tube leak,False,False
+WO-0151,Motor trip,False,False
+WO-0152,Lube oil leak,False,False
+WO-0153,Lube oil leak,False,True
+WO-0154,Routine maintenance,False,False
+WO-0155,Pump bearing failure,False,False
+WO-0156,Impeller wear,False,False
+WO-0157,Routine maintenance,False,False
+WO-0158,Compressor bearing overheating,True,False
+WO-0159,Routine maintenance,False,False
+WO-0160,Impeller wear,False,False
+WO-0161,Gasket leak,False,False
+WO-0162,Compressor valve failure,False,False
+WO-0163,Mechanical seal leakage,False,False
+WO-0164,Routine maintenance,False,False
+WO-0165,Routine maintenance,False,False
+WO-0166,Tube fouling,False,False
+WO-0167,Cavitation,False,False
+WO-0168,Tube fouling,False,False
+WO-0169,Routine maintenance,False,False
+WO-0170,Impeller wear,False,False
+WO-0171,Cavitation,False,False
+WO-0172,Motor winding overheating,False,False
+WO-0173,Motor trip,False,False
+WO-0174,Cavitation,False,False
+WO-0175,Mechanical seal leakage,False,False
+WO-0176,Impeller wear,False,False
+WO-0177,Gasket leak,False,False
+WO-0178,Motor trip,False,False
+WO-0179,Impeller wear,False,False
+WO-0180,Pump bearing failure,False,False
+WO-0181,Pump bearing failure,False,False
+WO-0182,Impeller wear,False,False
+WO-0183,Routine maintenance,False,False
+WO-0184,Routine maintenance,False,False
+WO-0185,Mechanical seal leakage,False,False
+WO-0186,Lube oil leak,False,False
+WO-0187,Pump bearing failure,False,False
+WO-0188,Mechanical seal leakage,False,False
+WO-0189,Motor winding overheating,False,False
+WO-0190,Motor winding overheating,False,True
+WO-0191,High vibration,False,False
+WO-0192,Pump bearing failure,False,True
+WO-0193,Pump bearing failure,False,False
+WO-0194,Routine maintenance,False,False
+WO-0195,Compressor valve failure,False,False
+WO-0196,Compressor valve failure,False,True
+WO-0197,High vibration,False,False
+WO-0198,Pump bearing failure,False,False
+WO-0199,Mechanical seal leakage,True,False
+WO-0200,Pump bearing failure,False,False
+WO-0201,Tube fouling,False,False
+WO-0202,Pump bearing failure,False,False
+WO-0203,Cavitation,False,False
+WO-0204,Impeller wear,False,False
+WO-0205,Impeller wear,False,False
+WO-0206,Pump bearing failure,False,False
+WO-0207,Routine maintenance,False,False
+WO-0208,Pump bearing failure,False,False
+WO-0209,Lube oil leak,False,False
+WO-0210,Routine maintenance,False,False
+WO-0211,Pump bearing failure,False,False
+WO-0212,Routine maintenance,False,False
+WO-0213,Impeller wear,False,False
+WO-0214,Pump bearing failure,False,False
+WO-0215,High vibration,False,False
+WO-0216,Pump bearing failure,False,False
+WO-0217,Routine maintenance,False,False
+WO-0218,Motor winding overheating,False,False
+WO-0219,Routine maintenance,False,True
+WO-0220,Routine maintenance,False,False
+WO-0221,Routine maintenance,False,False
+WO-0222,Impeller wear,False,False
+WO-0223,Cavitation,False,False
+WO-0224,Motor trip,False,False
+WO-0225,Lube oil leak,False,False
+WO-0226,Pump bearing failure,False,False
+WO-0227,Mechanical seal leakage,False,False
+WO-0228,High vibration,False,False
+WO-0229,Pump bearing failure,False,False
+WO-0230,High vibration,False,False
+WO-0231,Cavitation,False,False
+WO-0232,Cavitation,False,True
+WO-0233,Routine maintenance,False,False
+WO-0234,High vibration,False,False
+WO-0235,Gasket leak,False,False
+WO-0236,Lube oil leak,False,False
+WO-0237,Pump bearing failure,False,False
+WO-0238,Routine maintenance,False,False
+WO-0239,Pump bearing failure,False,False
+WO-0240,Tube fouling,False,False
+WO-0241,Motor winding overheating,False,False
+WO-0242,Motor winding overheating,False,False
+WO-0243,Routine maintenance,False,False
+WO-0244,Mechanical seal leakage,False,False
+WO-0245,Pump bearing failure,False,False
+WO-0246,Cavitation,False,False
+WO-0247,Routine maintenance,False,False
+WO-0248,Mechanical seal leakage,False,False
+WO-0249,Pump bearing failure,False,True
+WO-0250,Pump bearing failure,False,False
+WO-0251,Compressor valve failure,False,False
+WO-0252,Tube fouling,True,False
+WO-0253,Tube leak,False,False
+WO-0254,Tube leak,False,False
+WO-0255,Mechanical seal leakage,False,False
+WO-0256,Routine maintenance,False,False
+WO-0257,Cavitation,False,False
+WO-0258,Tube leak,False,False
+WO-0259,Routine maintenance,False,False
+WO-0260,Motor trip,False,False
+WO-0261,Cavitation,False,False
+WO-0262,Routine maintenance,False,False
+WO-0263,Compressor bearing overheating,False,False
+WO-0264,Routine maintenance,False,False
+WO-0265,Mechanical seal leakage,False,False
+WO-0266,Tube fouling,False,False
+WO-0267,Mechanical seal leakage,False,False
+WO-0268,Pump bearing failure,False,False
+WO-0269,Impeller wear,False,False
+WO-0270,Mechanical seal leakage,False,False
+WO-0271,Cavitation,False,False
+WO-0272,Lube oil leak,False,False
+WO-0273,Motor trip,False,False
+WO-0274,Routine maintenance,False,False
+WO-0275,Motor winding overheating,False,False
+WO-0276,Motor trip,False,False
+WO-0277,Mechanical seal leakage,True,False
+WO-0278,Mechanical seal leakage,False,False
+WO-0279,Mechanical seal leakage,False,False
+WO-0280,Pump bearing failure,False,False
+WO-0281,Tube fouling,False,False
+WO-0282,Lube oil leak,False,False
+WO-0283,Impeller wear,False,False
+WO-0284,Lube oil leak,False,False
+WO-0285,Mechanical seal leakage,False,False
+WO-0286,Compressor bearing overheating,False,False
+WO-0287,Routine maintenance,False,False
+WO-0288,Cavitation,False,False
+WO-0289,Routine maintenance,False,False
+WO-0290,Motor trip,False,False
+WO-0291,Mechanical seal leakage,False,False
+WO-0292,Routine maintenance,False,False
+WO-0293,Routine maintenance,False,False
+WO-0294,Cavitation,False,False
+WO-0295,Tube leak,False,False
+WO-0296,Motor winding overheating,False,False
+WO-0297,Impeller wear,False,False
+WO-0298,Gasket leak,False,False
+WO-0299,Cavitation,False,False
+WO-0300,Routine maintenance,False,False
+WO-0301,Mechanical seal leakage,False,False
+WO-0302,Cavitation,False,False
+WO-0303,Motor winding overheating,False,False
+WO-0304,Pump bearing failure,False,False
+WO-0305,Routine maintenance,False,False
+WO-0306,Routine maintenance,False,False
+WO-0307,Routine maintenance,False,True
+WO-0308,Mechanical seal leakage,False,False
+WO-0309,Routine maintenance,False,False
+WO-0310,Impeller wear,False,False
+WO-0311,Compressor bearing overheating,True,False
+WO-0312,Compressor valve failure,False,False
+WO-0313,Impeller wear,False,False
+WO-0314,Compressor bearing overheating,False,False
+WO-0315,Compressor bearing overheating,False,False
+WO-0316,Routine maintenance,False,False
+WO-0317,Mechanical seal leakage,False,False
+WO-0318,Routine maintenance,False,False
+WO-0319,Pump bearing failure,False,False
+WO-0320,Lube oil leak,False,False
+WO-0321,Routine maintenance,False,False
+WO-0322,Tube fouling,False,False
+WO-0323,Impeller wear,False,False
+WO-0324,Compressor valve failure,False,False
+WO-0325,Tube leak,False,False
+WO-0326,Tube leak,False,True
+WO-0327,Impeller wear,False,False
+WO-0328,Motor winding overheating,False,False
+WO-0329,Routine maintenance,False,False
+WO-0330,Mechanical seal leakage,False,False
+WO-0331,Lube oil leak,False,False
+WO-0332,Routine maintenance,False,False
+WO-0333,Routine maintenance,False,True
+WO-0334,Gasket leak,False,False
+WO-0335,Motor winding overheating,False,False
+WO-0336,Routine maintenance,False,False
+WO-0337,Routine maintenance,False,False
+WO-0338,Lube oil leak,False,False
+WO-0339,Cavitation,False,False
+WO-0340,Impeller wear,False,False
+WO-0341,Routine maintenance,False,False
+WO-0342,Routine maintenance,False,False
+WO-0343,Impeller wear,False,False
+WO-0344,Routine maintenance,False,True
+WO-0345,Routine maintenance,False,False
+WO-0346,Motor trip,False,False
+WO-0347,Pump bearing failure,False,False
+WO-0348,Pump bearing failure,False,False
+WO-0349,Impeller wear,False,False
+WO-0350,Routine maintenance,False,False
+WO-0351,Tube leak,False,False
+WO-0352,Routine maintenance,False,False
+WO-0353,Compressor valve failure,False,False
+WO-0354,Routine maintenance,False,False
+WO-0355,Cavitation,False,False
+WO-0356,Pump bearing failure,False,False
+WO-0357,Tube leak,False,False
+WO-0358,Routine maintenance,False,False
+WO-0359,Mechanical seal leakage,True,False
+WO-0360,Impeller wear,False,False
+WO-0361,Tube fouling,False,False
+WO-0362,Tube leak,False,False
+WO-0363,Mechanical seal leakage,False,False
+WO-0364,Mechanical seal leakage,False,False
+WO-0365,Routine maintenance,False,False
+WO-0366,Impeller wear,False,False
+WO-0367,Routine maintenance,False,False
+WO-0368,Routine maintenance,False,True
+WO-0369,Lube oil leak,False,False
+WO-0370,Mechanical seal leakage,False,False
+WO-0371,Tube fouling,False,False
+WO-0372,Impeller wear,False,False
+WO-0373,High vibration,False,False
+WO-0374,Mechanical seal leakage,False,False
+WO-0375,High vibration,False,False
+WO-0376,Routine maintenance,False,False
+WO-0377,Mechanical seal leakage,False,False
+WO-0378,Gasket leak,False,False
+WO-0379,Gasket leak,False,False
+WO-0380,Impeller wear,False,False
+WO-0381,Cavitation,False,False
+WO-0382,Lube oil leak,False,False
+WO-0383,Pump bearing failure,False,False
+WO-0384,Pump bearing failure,False,False
+WO-0385,Routine maintenance,False,False
+WO-0386,Mechanical seal leakage,False,False
+WO-0387,Lube oil leak,False,False
+WO-0388,Routine maintenance,False,False
+WO-0389,Pump bearing failure,False,False
+WO-0390,Cavitation,False,False
+WO-0391,Routine maintenance,False,False
+WO-0392,Motor winding overheating,False,False
+WO-0393,Impeller wear,False,True
+WO-0394,Impeller wear,False,False
+WO-0395,Compressor valve failure,False,False
+WO-0396,Cavitation,False,False
+WO-0397,Gasket leak,False,False
+WO-0398,Gasket leak,False,False
+WO-0399,Compressor bearing overheating,False,False
+WO-0400,Mechanical seal leakage,False,False
+WO-0401,Routine maintenance,False,False
+WO-0402,Impeller wear,False,False
+WO-0403,Pump bearing failure,False,False
+WO-0404,Impeller wear,False,False
+WO-0405,High vibration,False,False
+WO-0406,Compressor bearing overheating,False,False
+WO-0407,Compressor bearing overheating,False,False
+WO-0408,Routine maintenance,False,False
+WO-0409,Pump bearing failure,False,False
+WO-0410,Routine maintenance,False,False
+WO-0411,Motor trip,False,False
+WO-0412,Impeller wear,False,False
+WO-0413,Cavitation,False,False
+WO-0414,Mechanical seal leakage,False,False
+WO-0415,Routine maintenance,False,False
+WO-0416,Cavitation,False,False
+WO-0417,Tube fouling,True,False
+WO-0418,High vibration,False,False
+WO-0419,Routine maintenance,False,False
+WO-0420,Mechanical seal leakage,False,False
+WO-0421,Cavitation,False,False
+WO-0422,Mechanical seal leakage,False,False
+WO-0423,Mechanical seal leakage,True,False
+WO-0424,Impeller wear,False,False
+WO-0425,Routine maintenance,False,False
+WO-0426,Routine maintenance,False,False
+WO-0427,Compressor bearing overheating,True,False
+WO-0428,Cavitation,False,False
+WO-0429,Tube fouling,False,False
+WO-0430,Lube oil leak,False,False
+WO-0431,Gasket leak,False,False
+WO-0432,Impeller wear,False,False
+WO-0433,High vibration,False,False
+WO-0434,Pump bearing failure,False,False
+WO-0435,Routine maintenance,False,False
+WO-0436,Motor winding overheating,False,False
+WO-0437,Lube oil leak,False,False
+WO-0438,Gasket leak,False,False
+WO-0439,Cavitation,False,False
+WO-0440,Tube leak,False,False
+WO-0441,Mechanical seal leakage,True,False
+WO-0442,Motor trip,False,False
+WO-0443,Impeller wear,False,False
+WO-0444,Lube oil leak,False,False
+WO-0445,High vibration,False,False
+WO-0446,Compressor bearing overheating,False,False
+WO-0447,Tube fouling,True,False
+WO-0448,Routine maintenance,False,False
+WO-0449,Routine maintenance,False,False
+WO-0450,Compressor bearing overheating,True,False
+WO-0451,Routine maintenance,False,False
+WO-0452,Motor winding overheating,False,False
+WO-0453,Cavitation,False,False
+WO-0454,Motor trip,False,False
+WO-0455,Compressor bearing overheating,False,False
+WO-0456,Routine maintenance,False,False
+WO-0457,Pump bearing failure,False,False
+WO-0458,Routine maintenance,False,False
+WO-0459,Pump bearing failure,False,False
+WO-0460,Impeller wear,False,False
+WO-0461,Impeller wear,False,False
+WO-0462,Routine maintenance,False,False
+WO-0463,High vibration,False,False
+WO-0464,Cavitation,False,False
+WO-0465,Mechanical seal leakage,True,False
+WO-0466,Routine maintenance,False,False
+WO-0467,Cavitation,False,False
+WO-0468,Compressor valve failure,False,False
+WO-0469,Pump bearing failure,False,False
+WO-0470,Routine maintenance,False,False
+WO-0471,Compressor valve failure,False,False
+WO-0472,Tube fouling,True,False
+WO-0473,Routine maintenance,False,False
+WO-0474,Routine maintenance,False,False
+WO-0475,Impeller wear,False,False
+WO-0476,Mechanical seal leakage,False,False
+WO-0477,Pump bearing failure,False,False
+WO-0478,Compressor bearing overheating,True,False
+WO-0479,High vibration,False,False
+WO-0480,Gasket leak,False,False
+WO-0481,Compressor valve failure,False,False
+WO-0482,Pump bearing failure,False,False
+WO-0483,Motor winding overheating,False,False
+WO-0484,Motor winding overheating,False,False
+WO-0485,Tube leak,False,False
+WO-0486,Mechanical seal leakage,True,False
+WO-0487,Mechanical seal leakage,False,False
+WO-0488,Impeller wear,False,False
+WO-0489,Gasket leak,False,False
+WO-0490,Routine maintenance,False,False
+WO-0491,Impeller wear,False,False
