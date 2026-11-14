@@ -26,6 +26,7 @@ from app.agent.tools import AgentContext, AuditSink, ToolGuard
 from app.config import get_settings
 from app.db import connect
 from app.guard.audit import AuditGuard
+from app.guard.roles import allowed_tools, resolve_role
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -89,19 +90,31 @@ def _with_tag(question: str, tag: str | None) -> tuple[str, str | None]:
     return f"{question}\n\n(The user is looking at asset {tag}.)", tag
 
 
+def _audit_role(role: str, plant_role: str | None) -> str:
+    """Role as recorded in audit_log: the spec role, plus the detailed plant role if sent."""
+    return f"{role} ({plant_role})" if plant_role else role
+
+
 @router.post("/ask")
 async def ask(
     req: AskRequest,
     x_user: str | None = Header(None),
+    x_role: str | None = Header(None),
     x_plant_role: str | None = Header(None),
 ) -> EventSourceResponse:
     """Frontend contract: step / token / done / blocked / error events."""
     question, tag = _with_tag(req.question, req.tag)
+    role = resolve_role(x_role)
 
     async def events() -> AsyncIterator[dict]:
-        ctx = make_context(user=x_user or "agent", role=x_plant_role or "")
+        ctx = make_context(user=x_user or "agent", role=_audit_role(role, x_plant_role))
         raw = stream_agent(
-            question, ctx, get_chat_model(), [t.model_dump() for t in req.history], tag=tag
+            question,
+            ctx,
+            get_chat_model(),
+            [t.model_dump() for t in req.history],
+            tool_names=allowed_tools(role),
+            tag=tag,
         )
         try:
             async for out in frontend_stream(raw, ctx, tag):
@@ -116,15 +129,21 @@ async def ask(
 async def chat(
     req: ChatRequest,
     x_user: str | None = Header(None),
+    x_role: str | None = Header(None),
     x_plant_role: str | None = Header(None),
 ) -> EventSourceResponse:
     """Stream the agent run as server-sent events. Event names are graph.EVENT_TYPES."""
+    role = resolve_role(x_role)
 
     async def events() -> AsyncIterator[dict]:
-        ctx = make_context(user=x_user or "agent", role=x_plant_role or "")
+        ctx = make_context(user=x_user or "agent", role=_audit_role(role, x_plant_role))
         try:
             async for ev in stream_agent(
-                req.message, ctx, get_chat_model(), [t.model_dump() for t in req.history]
+                req.message,
+                ctx,
+                get_chat_model(),
+                [t.model_dump() for t in req.history],
+                tool_names=allowed_tools(role),
             ):
                 yield {"event": ev["type"], "data": json.dumps(ev["data"], default=str)}
         finally:

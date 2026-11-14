@@ -19,6 +19,8 @@ from tests.agent_helpers import (
     tool_call,
 )
 
+ENGINEER = {"X-Role": "engineer"}
+
 
 @pytest.fixture
 def settings(tmp_path, monkeypatch):
@@ -240,14 +242,16 @@ def test_documents_work_order_report_list_and_download(client, tmp_path, monkeyp
 
     monkeypatch.setattr(agent_api, "make_context", ctx_factory)
 
-    wo = client.post("/api/documents/work-order", json={"tag": "p101", "requested_by": "Asha"})
+    wo = client.post(
+        "/api/documents/work-order", json={"tag": "p101", "requested_by": "Asha"}, headers=ENGINEER
+    )
     assert wo.status_code == 200, wo.text
     item = wo.json()
     assert item["kind"] == "work_order" and item["tag"] == "P-101"
     assert item["created_by"] == "Asha" and item["work_order"]["requested_by"] == "Asha"
     assert item["work_order"]["problem"].startswith("Recurring failures")  # no issue given
 
-    rep = client.post("/api/documents/bad-actor-report")
+    rep = client.post("/api/documents/bad-actor-report", headers=ENGINEER)
     assert rep.status_code == 200 and rep.json()["kind"] == "bad_actor_report"
 
     listed = client.get("/api/documents").json()
@@ -268,7 +272,12 @@ def test_document_download_rejects_traversal(client, settings) -> None:
 
 def test_work_order_for_unknown_asset_is_422(client, tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(agent_api, "make_context", lambda **kw: make_context(tmp_path))
-    assert client.post("/api/documents/work-order", json={"tag": "P-999"}).status_code == 422
+    assert (
+        client.post(
+            "/api/documents/work-order", json={"tag": "P-999"}, headers=ENGINEER
+        ).status_code
+        == 422
+    )
 
 
 # --------------------------------------------------------------------------- inspections

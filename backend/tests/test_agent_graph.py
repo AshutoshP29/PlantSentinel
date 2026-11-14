@@ -242,3 +242,41 @@ def test_fix_tool_citations_maps_tools_to_evidence_ids() -> None:
     assert cited_refs(out)[:3] == ["INSP-004", "S3", "S2"]
     # nothing read -> the tool citation is simply dropped
     assert fix_tool_citations("x [read_inspection]", SimpleNamespace(inspections={})) == "x"
+
+
+def test_technician_cannot_draft_work_order_even_with_permissive_guard(tmp_path) -> None:
+    """Production setup: the audit guard allows all seven tools; the role narrows them."""
+    from app.agent.tools import TOOL_NAMES, AllowListGuard
+    from app.guard.roles import allowed_tools
+
+    ctx = make_context(tmp_path)
+    ctx.guard = AllowListGuard(set(TOOL_NAMES))  # like AuditGuard: every registered tool
+    ctx.role = "technician"
+    llm = ScriptedChatModel(
+        responses=[tool_call("generate_work_order", {"tag": "P-101", "issue": "x"}), "ok"]
+    )
+    out = run(ctx, llm, tool_names=allowed_tools("technician"))
+    (b,) = of(out["events"], "blocked")
+    assert b["tool"] == "generate_work_order"
+    assert "not permitted for technician" in b["reason"]
+    assert ctx.documents == []  # nothing was generated
+    assert out["answer"]["text"] == "ok"
+
+
+def test_restricted_role_is_told_and_never_gets_a_blank_answer(tmp_path) -> None:
+    from app.guard.roles import allowed_tools
+
+    ctx = make_context(tmp_path)
+    ctx.role = "technician (shift_supervisor)"
+    llm = ScriptedChatModel(responses=[""])  # the real q3 model goes silent here
+    out = run(ctx, llm, tool_names=allowed_tools("technician"))
+    system = llm.calls[0][0].content
+    assert "can't use these tools: generate_work_order, export_report" in system
+    text = out["answer"]["text"]
+    assert "needs the engineer role" in text and "signed in as technician." in text
+
+
+def test_engineer_prompt_has_no_restriction_note(tmp_path) -> None:
+    llm = ScriptedChatModel(responses=["ok"])
+    run(make_context(tmp_path), llm)
+    assert "can't use these tools" not in llm.calls[0][0].content

@@ -44,6 +44,7 @@ from app.agent.tools import (
     TOOL_SPECS,
     AgentContext,
     AllowListGuard,
+    GuardDecision,
     build_tools,
     emit_audit,
     execute,
@@ -231,6 +232,26 @@ class Checklist:
         ]
 
 
+RESTRICTED_NOTE = """
+The current user's role can't use these tools: {tools}. If they ask for that (for example a
+work order or a report), reply in two short sentences: an engineer must do it, and you can
+investigate the asset's history, inspection, manuals and risk if they ask. In that reply do not
+state any facts about the asset, because you have not called a tool for them.
+"""
+
+
+def empty_answer_text(ctx: AgentContext, unavailable: list[str]) -> str:
+    """Answer to show when the model returns nothing at all."""
+    if unavailable:
+        role = (ctx.role or "your role").split(" (")[0]
+        return (
+            f"Drafting work orders and exporting reports needs the engineer role; you are "
+            f"signed in as {role}. I can still explain an asset's failure history, latest "
+            "inspection, manual guidance and risk. Ask me about one."
+        )
+    return "I couldn't produce an answer to that. Please rephrase the question."
+
+
 def build_graph(
     ctx: AgentContext,
     llm: BaseChatModel,
@@ -249,7 +270,11 @@ def build_graph(
         ctx.guard = AllowListGuard(set(specs))
     guard = ctx.guard
     model = llm.bind_tools(build_tools(ctx, list(specs)))
-    system = SystemMessage(SYSTEM_PROMPT.replace("{max_calls}", str(limit)))
+    unavailable = [name for name, *_ in TOOL_SPECS if name not in specs]
+    prompt = SYSTEM_PROMPT.replace("{max_calls}", str(limit))
+    if unavailable:
+        prompt += RESTRICTED_NOTE.format(tools=", ".join(unavailable))
+    system = SystemMessage(prompt)
     seen: dict[str, str] = {}
 
     def agent(state: AgentState) -> dict:
@@ -261,6 +286,10 @@ def build_graph(
             if forced:
                 log.info("checklist: model answered early; calling %s", [c["name"] for c in forced])
                 resp = AIMessage(content="", tool_calls=forced)
+        if not resp.tool_calls and not str(resp.content).strip():
+            # Small models go silent when asked for something no offered tool can do.
+            log.info("model returned an empty answer; using the fallback text")
+            resp = AIMessage(content=empty_answer_text(ctx, unavailable))
         return {"messages": [resp]}
 
     def tools(state: AgentState) -> dict:
@@ -276,6 +305,11 @@ def build_graph(
             else:
                 used += 1
                 decision = guard.check(name, args)
+                if decision.allowed and name not in specs:
+                    # Known tool, but not offered to this user's role (e.g. a technician
+                    # asking for a work order): block it like any other policy violation.
+                    role = ctx.role or "this role"
+                    decision = GuardDecision(False, f"'{name}' is not permitted for {role}", name)
                 if not decision.allowed:
                     content = json.dumps({"error": f"Blocked by policy: {decision.reason}."})
                     artifact = {

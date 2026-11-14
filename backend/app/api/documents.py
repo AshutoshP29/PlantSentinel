@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.agent.tools import ToolError, create_bad_actor_report, create_work_order
 from app.api import agent as agent_api
 from app.docgen.documents import MEDIA_TYPES, get_document, list_documents
+from app.guard.roles import require
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -35,9 +38,11 @@ def documents() -> list[dict]:
 
 
 @router.post("/work-order")
-def new_work_order(req: WorkOrderRequest) -> dict:
-    """Draft a work order for a tag (manual RAG + one LLM call + .docx). Returns DocumentItem."""
-    ctx = agent_api.make_context(user=req.requested_by)
+def new_work_order(
+    req: WorkOrderRequest, role: Annotated[str, Depends(require("generate"))]
+) -> dict:
+    """Draft a work order for a tag (manual RAG + one LLM call + .docx). Engineers only."""
+    ctx = agent_api.make_context(user=req.requested_by, role=role)
     try:
         return _public(create_work_order(ctx, req.tag, req.issue, req.priority, req.requested_by))
     except ToolError as exc:
@@ -47,9 +52,12 @@ def new_work_order(req: WorkOrderRequest) -> dict:
 
 
 @router.post("/bad-actor-report")
-def new_bad_actor_report(req: ReportRequest | None = None) -> dict:
+def new_bad_actor_report(
+    role: Annotated[str, Depends(require("export"))], req: ReportRequest | None = None
+) -> dict:
+    """Write the bad-actor report (.xlsx). Engineers only."""
     req = req or ReportRequest()
-    ctx = agent_api.make_context(user=req.requested_by)
+    ctx = agent_api.make_context(user=req.requested_by, role=role)
     try:
         return _public(create_bad_actor_report(ctx, req.top_n, req.requested_by))
     finally:
