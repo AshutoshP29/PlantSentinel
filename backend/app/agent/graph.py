@@ -127,6 +127,10 @@ def _audit_entry(ctx: AgentContext, tool: str, args: dict, artifact: dict) -> di
         "input": json.dumps(args, default=str),
         "output": output,
         "status": status,
+        # Extra context for the Guard's blocked_attempts record (not audit_log columns).
+        "reason": artifact.get("reason", ""),
+        "target": artifact.get("target", ""),
+        "source": artifact.get("source", ""),
     }
 
 

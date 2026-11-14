@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import agent, analytics, documents, health, inspections
+from app.api import agent, analytics, documents, health, inspections, privacy
 from app.config import get_settings
 from app.db import connect, init_db
 
@@ -22,3 +22,4 @@ app.include_router(agent.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(inspections.router, prefix="/api")
+app.include_router(privacy.router, prefix="/api")
