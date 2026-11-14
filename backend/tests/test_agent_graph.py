@@ -29,6 +29,8 @@ def demo_settings(monkeypatch, tmp_path):
 
 
 def run(ctx, llm, question="Investigate P-101", **kw):
+    # these tests script the model exactly; the diagnosis checklist has its own tests
+    kw.setdefault("enforce_checklist", False)
     return asyncio.run(run_agent(question, ctx, llm, **kw))
 
 

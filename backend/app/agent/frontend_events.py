@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import AsyncIterator
 
 from app.agent.graph import BRACKET_RE, REF_TOKEN, known_refs
 from app.agent.tools import AgentContext
@@ -168,3 +169,13 @@ class FrontendStream:
         if self.tag:
             tags.add(self.tag)
         return bool(tags)
+
+
+async def frontend_stream(
+    events: AsyncIterator[dict], ctx: AgentContext, tag: str | None = None
+) -> AsyncIterator[dict]:
+    """Wrap any agent event stream (stream_agent, stream_injection_test) in the UI contract."""
+    adapter = FrontendStream(ctx, tag)
+    async for ev in events:
+        for out in adapter.convert(ev):
+            yield out
