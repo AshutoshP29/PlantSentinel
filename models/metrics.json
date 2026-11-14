@@ -1,0 +1,39 @@
+{
+  "clustering": {
+    "ari_vs_truth": 0.9338,
+    "homogeneity_vs_truth": 0.9586,
+    "merge_distance": 0.12,
+    "min_cluster_size": 8,
+    "n_clusters": 19,
+    "n_failure_modes": 15,
+    "n_true_modes": 14,
+    "n_work_orders": 491,
+    "noise_fraction": 0.0041,
+    "silhouette": 0.6346
+  },
+  "risk_model": {
+    "dataset": "AI4I 2020",
+    "f1": 0.8397,
+    "features": [
+      "air_temp_k",
+      "process_temp_k",
+      "rpm",
+      "torque_nm",
+      "tool_wear_min",
+      "temp_diff_k",
+      "power_kw",
+      "strain_nm_min",
+      "type_code"
+    ],
+    "model": "xgboost",
+    "n_test": 2000,
+    "n_train": 6400,
+    "n_val": 1600,
+    "positive_rate": 0.0339,
+    "pr_auc": 0.8748,
+    "precision": 0.873,
+    "recall": 0.8088,
+    "roc_auc": 0.9754,
+    "threshold": 0.59
+  }
+}
