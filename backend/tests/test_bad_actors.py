@@ -4,7 +4,12 @@ from datetime import date, timedelta
 import pandas as pd
 import pytest
 
-from app.analytics.bad_actors import compute_bad_actors, get_bad_actors, is_failure_mode
+from app.analytics.bad_actors import (
+    compute_bad_actors,
+    get_bad_actors,
+    is_failure_mode,
+    score_bad_actors,
+)
 from app.db import connect, init_db
 
 END = date(2026, 11, 14)
@@ -128,3 +133,44 @@ def test_get_bad_actors_from_db(frame: pd.DataFrame) -> None:
     assert top[1]["mtbf_current_days"] == 60.0
     assert top[1]["mtbf_previous_days"] is None  # JSON-safe, not NaN
     assert [r["tag"] for r in get_bad_actors(conn, flagged_only=True)] == ["P-101", "C-203"]
+
+
+def _db(frame: pd.DataFrame) -> sqlite3.Connection:
+    conn = connect(":memory:")
+    init_db(conn)
+    conn.executemany(
+        "INSERT INTO assets(tag, criticality) VALUES (?, ?)", ASSETS.itertuples(index=False)
+    )
+    modes = {m: i for i, m in enumerate(frame["failure_mode"].unique(), start=1)}
+    conn.executemany(
+        "INSERT INTO failure_modes(id, name) VALUES (?, ?)", [(i, m) for m, i in modes.items()]
+    )
+    for i, r in enumerate(frame.itertuples(index=False)):
+        conn.execute(
+            """INSERT INTO work_orders(id, tag, date, cost_inr, downtime_hrs, failure_mode_id)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (f"WO-{i}", r.tag, r.date, r.cost_inr, r.downtime_hrs, modes[r.failure_mode]),
+        )
+    return conn
+
+
+@pytest.mark.parametrize(
+    "as_of", [None, END.isoformat(), END, pd.Timestamp(END)], ids=["none", "str", "date", "ts"]
+)
+def test_score_bad_actors_as_of_types(frame: pd.DataFrame, as_of: object) -> None:
+    rows = score_bad_actors(_db(frame), as_of)
+    assert [r["tag"] for r in rows] == ["P-101", "C-203", "M-401"]
+    assert rows[0]["count_180d"] == 4
+    assert rows[1]["mtbf_previous_days"] is None
+
+
+def test_score_bad_actors_past_as_of(frame: pd.DataFrame) -> None:
+    rows = score_bad_actors(_db(frame), (END - timedelta(days=200)).isoformat())
+    p101 = next(r for r in rows if r["tag"] == "P-101")
+    assert p101["count_180d"] == 1
+
+
+def test_score_bad_actors_empty_db() -> None:
+    conn = connect(":memory:")
+    init_db(conn)
+    assert score_bad_actors(conn) == []
