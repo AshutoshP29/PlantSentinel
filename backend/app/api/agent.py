@@ -13,7 +13,7 @@ from collections.abc import AsyncIterator
 from functools import lru_cache
 from typing import Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
@@ -25,6 +25,7 @@ from app.agent.rag import ManualStore
 from app.agent.tools import AgentContext
 from app.config import get_settings
 from app.db import connect
+from app.guard.audit import AuditGuard
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -52,10 +53,12 @@ def _manual_store() -> ManualStore:
 
 
 def make_context(user: str = "agent", role: str = "") -> AgentContext:
-    """Per-request agent context. Person C's Guard can be plugged in via `guard=`."""
+    """Per-request agent context. Every tool call goes through the auditing guard."""
     s = get_settings()
+    conn = connect(s.db_path)
     return AgentContext(
-        conn=connect(s.db_path),
+        conn=conn,
+        guard=AuditGuard(conn),
         store_factory=_manual_store,
         llm_factory=get_chat_model,
         outputs_dir=s.outputs_dir,
@@ -77,12 +80,16 @@ def _with_tag(question: str, tag: str | None) -> tuple[str, str | None]:
 
 
 @router.post("/ask")
-async def ask(req: AskRequest) -> EventSourceResponse:
+async def ask(
+    req: AskRequest,
+    x_user: str | None = Header(None),
+    x_plant_role: str | None = Header(None),
+) -> EventSourceResponse:
     """Frontend contract: step / token / done / blocked / error events."""
     question, tag = _with_tag(req.question, req.tag)
 
     async def events() -> AsyncIterator[dict]:
-        ctx = make_context()
+        ctx = make_context(user=x_user or "agent", role=x_plant_role or "")
         adapter = FrontendStream(ctx, tag)
         try:
             async for ev in stream_agent(
@@ -97,11 +104,15 @@ async def ask(req: AskRequest) -> EventSourceResponse:
 
 
 @router.post("/chat")
-async def chat(req: ChatRequest) -> EventSourceResponse:
+async def chat(
+    req: ChatRequest,
+    x_user: str | None = Header(None),
+    x_plant_role: str | None = Header(None),
+) -> EventSourceResponse:
     """Stream the agent run as server-sent events. Event names are graph.EVENT_TYPES."""
 
     async def events() -> AsyncIterator[dict]:
-        ctx = make_context()
+        ctx = make_context(user=x_user or "agent", role=x_plant_role or "")
         try:
             async for ev in stream_agent(
                 req.message, ctx, get_chat_model(), [t.model_dump() for t in req.history]

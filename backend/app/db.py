@@ -25,9 +25,21 @@ CREATE TABLE IF NOT EXISTS audit_log(
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, user TEXT, role TEXT,
   action TEXT, tool TEXT, input TEXT, output TEXT,
   status TEXT CHECK(status IN ('allowed','blocked','error')));
+
+-- One row per blocked tool call: where the data was headed and which document asked for it.
+CREATE TABLE IF NOT EXISTS blocked_attempts(
+  id TEXT PRIMARY KEY, ts TEXT, user TEXT, tool TEXT, target TEXT, source TEXT, reason TEXT,
+  audit_id INTEGER REFERENCES audit_log(id));
 """
 
-TABLES = ("assets", "failure_modes", "work_orders", "inspections", "audit_log")
+TABLES = (
+    "assets",
+    "failure_modes",
+    "work_orders",
+    "inspections",
+    "audit_log",
+    "blocked_attempts",
+)
 
 
 def connect(db_path: Path | str) -> sqlite3.Connection:

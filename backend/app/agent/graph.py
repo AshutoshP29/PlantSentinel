@@ -185,6 +185,9 @@ def build_graph(
                         "status": {"success": "allowed"}.get(
                             artifact["status"], artifact["status"]
                         ),
+                        "reason": artifact.get("reason", ""),
+                        "target": artifact.get("target", ""),
+                        "source": artifact.get("source", ""),
                     }
                 )
             out.append(

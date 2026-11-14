@@ -527,7 +527,8 @@ export const api = {
   /** Blocked attempts: from the backend (C, proposed) plus anything blocked in this browser's agent runs. */
   async getBlockedAttempts(): Promise<BlockedAttempt[]> {
     const server = isLive('privacy') ? await get<BlockedAttempt[]>('/privacy/blocked').catch(() => []) : await fromMock(store.listBlocked(), 80)
-    return [...streamBlocked, ...server].sort((a, b) => b.at.localeCompare(a.at))
+    const local = isLive('privacy') ? [] : streamBlocked // live: the server list already has them
+    return [...local, ...server].sort((a, b) => b.at.localeCompare(a.at))
   },
 
   /** Backend (proposed): GET /api/audit-log → audit_log rows */
