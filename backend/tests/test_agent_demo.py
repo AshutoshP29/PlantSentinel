@@ -89,6 +89,7 @@ def test_seed_shim_summary_and_vision_check(tmp_path, monkeypatch) -> None:
     vision = _scan(tmp_path / "INSP-004_P-101.pdf", extract)
     monkeypatch.setattr(shim, "check_ollama", lambda m: OllamaStatus(True, "h"))
     monkeypatch.setattr(inspections, "ollama_vision", vision)
+    monkeypatch.setattr(inspections, "ollama_extract", lambda p, s: vision(p, [], s))
     conn = seeded_conn()
     assert shim.ingest_scans(conn, tmp_path) == (
         "1 scans: 1 added, 0 unchanged, 0 failed [INSP-004]"

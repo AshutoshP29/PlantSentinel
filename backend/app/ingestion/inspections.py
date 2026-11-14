@@ -18,15 +18,16 @@ def ingest_scans(
 ) -> str:
     """Read every scan into the inspections table and return a one-line summary.
 
-    Raises LLMUnavailableError when the vision model can't be used, so the seed step reports
+    Raises LLMUnavailableError when the vision or text model can't be used, so the seed step reports
     why instead of recording one failure per scan.
     """
-    vision_model = get_settings().vision_model
-    status = check_ollama([vision_model])
+    s = get_settings()
+    needed = [s.vision_model, s.llm_model]  # transcription + extraction
+    status = check_ollama(needed)
     if not status.ready:
+        pulls = "; ".join(f"ollama pull {m}" for m in status.missing)
         raise LLMUnavailableError(
-            f"vision model {vision_model} not available "
-            f"({status.error or 'run: ollama pull ' + vision_model})"
+            f"models for scan reading not available ({status.error or 'run: ' + pulls})"
         )
     reports = pipeline.ingest_scans(conn, directory, force=force)
     counts = {s: sum(r.status == s for r in reports) for s in ("added", "skipped", "failed")}
