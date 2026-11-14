@@ -1,18 +1,27 @@
 // Every screen gets its data through this file.
-// Demo mode is on by default; set VITE_USE_MOCK=false in frontend/.env.local
-// once the FastAPI backend serves these endpoints (see frontend/README.md).
+// Demo mode is on by default; set VITE_USE_MOCK=false in frontend/.env.local to use the
+// FastAPI backend (see frontend/README.md for the endpoints). Raw backend shapes go
+// through adapters.ts in both modes, so the screens never see raw fields.
 
+import { toAsset, toAuditEntry, toBadActor, toReadings, toRisk } from './adapters'
 import { runMockAgent, runMockInjection } from './agentMock'
 import { emit } from './events'
 import * as mock from './mock'
 import * as store from './store'
 import type {
   AgentEvent,
+  Asset,
   AssetDetail,
   AuditEntry,
+  AuthSession,
+  BackendAsset,
+  BackendAuditRow,
+  BackendBadActor,
+  BackendRisk,
+  BackendWorkOrder,
   BadActor,
   BlockedAttempt,
-  ClusterPreview,
+  ClusterRun,
   DashboardFilters,
   DashboardSummary,
   DocumentItem,
@@ -20,13 +29,17 @@ import type {
   IngestFile,
   IngestKind,
   IngestSummary,
+  Inspection,
   MtbfPoint,
+  NewUser,
   PrivacyStatus,
+  UserAccount,
   WorkOrderDraft,
 } from './types'
 
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
 export const SITE = mock.SITE
+export const DEMO_PASSWORD = store.DEMO_PASSWORD
 
 const LATENCY = 300
 const delay = (ms = LATENCY) => new Promise((r) => setTimeout(r, ms))
@@ -35,10 +48,22 @@ async function fromMock<T>(data: T, ms = LATENCY): Promise<T> {
   return structuredClone(data)
 }
 
-/** Role/user travel with every request so the backend guard can enforce and log them. */
+// ---------- session ----------
+
+let token: string | null = null
+
+/** Called by AuthProvider whenever the signed-in user changes. */
+export function setSessionUser(session: AuthSession | null) {
+  token = session?.token ?? null
+  store.setCurrentUser(session?.user ?? null)
+}
+
+/** Every request carries the token plus role/user so the backend guard can enforce and audit. */
 function headers(extra: Record<string, string> = {}): Record<string, string> {
   const { role, user } = store.getSession()
-  return { Accept: 'application/json', 'X-Role': role, 'X-User': user, ...extra }
+  const h: Record<string, string> = { Accept: 'application/json', 'X-Role': role, 'X-User': user, ...extra }
+  if (token) h.Authorization = `Bearer ${token}`
+  return h
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -47,8 +72,16 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     headers: headers(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
-  if (!res.ok) throw new Error(`${method} /api${path} failed: ${res.status} ${res.statusText}`)
-  return (await res.json()) as T
+  if (!res.ok) {
+    let detail = res.statusText
+    try {
+      detail = ((await res.json()) as { detail?: string }).detail ?? detail
+    } catch {
+      /* not JSON */
+    }
+    throw new Error(`${detail} (${res.status})`)
+  }
+  return res.status === 204 ? (undefined as T) : ((await res.json()) as T)
 }
 const get = <T>(path: string) => request<T>('GET', path)
 const post = <T>(path: string, body: unknown = {}) => request<T>('POST', path, body)
@@ -58,19 +91,82 @@ function qs(params: Record<string, string | number | undefined>): string {
   return p.length ? `?${p.map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&')}` : ''
 }
 
-/** Mock-only: the demo numbers are for 180 days; scale counts for other windows. */
+// ---------- shared lookups ----------
+
+let assetCache: Promise<Asset[]> | null = null
+function loadAssets(): Promise<Asset[]> {
+  assetCache ??= (USE_MOCK ? fromMock(mock.assets, 100) : get<BackendAsset[]>('/assets'))
+    .then((rows) => rows.map(toAsset))
+    .catch((e: unknown) => {
+      assetCache = null
+      throw e
+    })
+  return assetCache
+}
+
+async function loadBadActorsRaw(windowDays = 180): Promise<BackendBadActor[]> {
+  return USE_MOCK ? fromMock(mock.badActors) : get(`/bad-actors${qs({ top_n: 50, window_days: windowDays })}`)
+}
+
+/** Mock-only: demo counts are for 180 days; scale them for the other windows. */
 const scale = (f: DashboardFilters) => f.window_days / 180
 
-export function setSessionRole(role: store.SessionRole) {
-  store.setSession(role)
-}
-export const currentUser = () => store.getSession().user
-
 export const api = {
+  // ---------- auth & users ----------
+
+  /** Backend (proposed): POST /api/auth/login {username, password} → AuthSession */
+  async login(username: string, password: string): Promise<AuthSession> {
+    if (!USE_MOCK) return post('/auth/login', { username, password })
+    await delay(350)
+    const user = store.signIn(username, password)
+    if (!user) throw new Error('Wrong username or password')
+    return { token: `demo-${user.username}`, user }
+  },
+
+  /** Backend (proposed): POST /api/auth/logout */
+  async logout(): Promise<void> {
+    if (USE_MOCK) store.signOut()
+    else await post('/auth/logout').catch(() => undefined)
+  },
+
+  /** Re-validates a saved session on page load. Backend (proposed): GET /api/auth/me → UserAccount */
+  async resume(saved: AuthSession): Promise<AuthSession | null> {
+    if (USE_MOCK) {
+      const user = store.findUser(saved.user.username)
+      return user ? { token: saved.token, user } : null
+    }
+    token = saved.token
+    try {
+      return { token: saved.token, user: await get<UserAccount>('/auth/me') }
+    } catch {
+      return null
+    }
+  },
+
+  /** Backend (proposed): GET /api/users */
+  listUsers(): Promise<UserAccount[]> {
+    return USE_MOCK ? fromMock(store.listUsers(), 120) : get('/users')
+  },
+
+  /** Backend (proposed): POST /api/users — must apply the same hierarchy rule (lib/roles.ts) */
+  async createUser(input: NewUser): Promise<UserAccount> {
+    if (!USE_MOCK) return post('/users', input)
+    await delay(300)
+    return store.createUser(input)
+  },
+
+  /** Backend (proposed): DELETE /api/users/:username */
+  async removeUser(username: string): Promise<void> {
+    if (!USE_MOCK) return request('DELETE', `/users/${encodeURIComponent(username)}`)
+    await delay(200)
+    store.removeUser(username)
+  },
+
   // ---------- dashboard ----------
 
+  /** Backend (proposed): GET /api/dashboard/summary?window_days= */
   getSummary(f: DashboardFilters): Promise<DashboardSummary> {
-    if (!USE_MOCK) return get(`/dashboard/summary${qs({ ...f })}`)
+    if (!USE_MOCK) return get(`/dashboard/summary${qs({ window_days: f.window_days })}`)
     const k = scale(f)
     const s = mock.summary
     return fromMock({
@@ -81,60 +177,77 @@ export const api = {
     })
   },
 
-  getBadActors(f: DashboardFilters, topN = 10): Promise<BadActor[]> {
-    if (!USE_MOCK) return get(`/bad-actors${qs({ top_n: topN, ...f })}`)
-    const k = scale(f)
-    const rows = mock.badActors
+  /** Backend: GET /api/bad-actors → bad_actors.get_bad_actors(). Unit/type/criticality filters run here. */
+  async getBadActors(f: DashboardFilters, topN = 10): Promise<BadActor[]> {
+    const [raw, assets] = await Promise.all([loadBadActorsRaw(f.window_days), loadAssets()])
+    const byTag = new Map(assets.map((a) => [a.tag, a]))
+    return raw
+      .map((b) => toBadActor(b, byTag.get(b.tag), 0))
       .filter((b) => !f.unit || b.location === f.unit)
       .filter((b) => !f.asset_type || b.asset_type === f.asset_type)
       .filter((b) => !f.criticality || b.criticality === f.criticality)
       .slice(0, topN)
-      .map((b, i) => ({
-        ...b,
-        rank: i + 1,
-        events: Math.max(1, Math.round(b.events * k)),
-        cost_inr: Math.round(b.cost_inr * k),
-        downtime_hrs: Math.round(b.downtime_hrs * k),
-      }))
-    return fromMock(rows)
+      .map((b, i) => ({ ...b, rank: i + 1 }))
   },
 
+  /** Backend (proposed): GET /api/failure-modes?window_days= */
   getFailureModes(f: DashboardFilters): Promise<FailureModeCount[]> {
-    if (!USE_MOCK) return get(`/failure-modes${qs({ ...f })}`)
+    if (!USE_MOCK) return get(`/failure-modes${qs({ window_days: f.window_days })}`)
     const k = scale(f)
     return fromMock(mock.failureModes.map((m) => ({ ...m, events: Math.max(1, Math.round(m.events * k)) })))
   },
 
+  /** Backend (proposed): GET /api/mtbf-trend */
   getPlantMtbf(): Promise<MtbfPoint[]> {
     return USE_MOCK ? fromMock(mock.plantMtbf) : get('/mtbf-trend')
   },
 
   // ---------- assets ----------
 
-  getAssets(): Promise<typeof mock.assets> {
-    return USE_MOCK ? fromMock(mock.assets, 100) : get('/assets')
+  getAssets(): Promise<Asset[]> {
+    return loadAssets()
   },
 
+  /**
+   * Backend: GET /api/assets/:tag/work-orders, GET /api/risk/:tag (risk.predict_risk) and
+   * GET /api/assets/:tag/inspection (404 when none), plus the bad-actor list.
+   */
   async getAssetDetail(tag: string): Promise<AssetDetail> {
-    if (!USE_MOCK) return get(`/assets/${encodeURIComponent(tag)}`)
-    const d = tag === 'P-101' ? mock.p101Detail : mock.genericDetail(tag)
-    if (!d) {
-      await delay()
-      throw new Error(`No asset with tag ${tag}`)
+    const assets = await loadAssets()
+    const asset = assets.find((a) => a.tag === tag)
+    if (!asset) throw new Error(`No asset with tag ${tag}`)
+
+    const [workOrders, riskRaw, badRaw, inspection] = await Promise.all([
+      USE_MOCK
+        ? fromMock(mock.workOrders.filter((w) => w.tag === tag))
+        : get<BackendWorkOrder[]>(`/assets/${encodeURIComponent(tag)}/work-orders`),
+      USE_MOCK
+        ? fromMock(mock.riskFor(tag))
+        : get<BackendRisk>(`/risk/${encodeURIComponent(tag)}`).catch(() => null),
+      loadBadActorsRaw(),
+      USE_MOCK
+        ? fromMock(tag === 'P-101' ? mock.p101Inspection : null)
+        : get<Inspection>(`/assets/${encodeURIComponent(tag)}/inspection`).catch(() => null),
+    ])
+
+    const worst = badRaw.find((b) => b.tag === tag)
+    return {
+      asset,
+      bad_actor: worst ? toBadActor(worst, asset, badRaw.indexOf(worst) + 1) : null,
+      work_orders: [...workOrders].sort((a, b) => b.date.localeCompare(a.date)),
+      risk: riskRaw ? toRisk(riskRaw, mock.RISK_MODEL_NOTE) : null,
+      readings: riskRaw ? toReadings(riskRaw.operating_condition) : [],
+      latest_inspection: inspection,
     }
-    return fromMock(d)
   },
 
   // ---------- upload ----------
 
   /**
    * Ingests files and reports per-file progress through onUpdate.
-   * Backend: POST /api/ingest (multipart, field "files") → IngestFile[] + IngestSummary.
+   * Backend (proposed): POST /api/ingest (multipart, field "files") → { files: IngestFile[], summary }.
    */
-  async ingest(
-    files: { name: string; file?: File }[],
-    onUpdate: (files: IngestFile[]) => void,
-  ): Promise<IngestSummary> {
+  async ingest(files: { name: string; file?: File }[], onUpdate: (files: IngestFile[]) => void): Promise<IngestSummary> {
     const items: IngestFile[] = files.map((f, i) => ({
       id: `f${Date.now()}-${i}`,
       name: f.name,
@@ -160,7 +273,7 @@ export const api = {
       await delay(item.kind === 'work_orders' ? 700 : 350)
       const demo = mock.demoFiles.find((d) => d.name === item.name)
       item.status = item.kind === 'manual' ? 'indexed' : 'done'
-      item.detail = demo?.detail ?? (item.kind === 'work_orders' ? '47 records' : '1 page')
+      item.detail = demo?.detail ?? (item.kind === 'work_orders' ? 'parsed' : '1 page')
       onUpdate(items.map((x) => ({ ...x })))
     }
     store.logAudit('ingest', `${items.length} files`, 'parsed and indexed')
@@ -169,7 +282,7 @@ export const api = {
     return isDemo
       ? { ...mock.ingestTotals }
       : {
-          records_parsed: items.filter((i) => i.kind === 'work_orders').length * 47,
+          records_parsed: 0,
           scans_ocrd: items.filter((i) => i.kind === 'scan').length,
           manuals_indexed: items.filter((i) => i.kind === 'manual').length,
         }
@@ -179,35 +292,29 @@ export const api = {
     return mock.demoFiles.map((f) => f.name)
   },
 
-  /** Backend: POST /api/cluster → ClusterPreview[] (top clusters with sample raw texts) */
-  async runClustering(): Promise<ClusterPreview[]> {
+  /** Backend (proposed): POST /api/cluster → ClusterRun (cluster.recluster + models/metrics.json) */
+  async runClustering(): Promise<ClusterRun> {
     if (!USE_MOCK) return post('/cluster')
     await delay(1400)
-    store.logAudit('cluster_failures', '512 work orders', `${mock.failureModes.length - 1} failure modes`)
-    return structuredClone(mock.clusterPreview)
+    store.logAudit('cluster_failures', '491 work orders', '15 failure modes')
+    return structuredClone(mock.clusterRun)
   },
 
-  /** Backend: DELETE /api/data */
+  /** Backend (proposed): DELETE /api/data */
   async clearData(): Promise<void> {
-    if (!USE_MOCK) {
-      await request('DELETE', '/data')
-      return
-    }
+    if (!USE_MOCK) return request('DELETE', '/data')
     await delay(200)
   },
 
   // ---------- agent ----------
 
-  /**
-   * Streams agent events. Backend: POST /api/agent/ask {question, tag?} answering
-   * with text/event-stream, one AgentEvent JSON per `data:` line. Returns a cancel fn.
-   */
+  /** Streams agent events (SSE). Backend: POST /api/agent/ask {question, tag}. Returns a cancel fn. */
   askAgent(question: string, tag: string | null, onEvent: (e: AgentEvent) => void): () => void {
     if (USE_MOCK) return runMockAgent(question, onEvent)
     return streamSse('/agent/ask', { question, tag }, onEvent)
   },
 
-  /** Plays the poisoned vendor PDF scenario. Backend: POST /api/privacy/injection-test (SSE). */
+  /** Plays the poisoned vendor PDF scenario. Backend (proposed): POST /api/privacy/injection-test (SSE). */
   runInjectionTest(onEvent: (e: AgentEvent) => void): () => void {
     if (USE_MOCK) return runMockInjection(onEvent)
     return streamSse('/privacy/injection-test', {}, onEvent)
@@ -219,7 +326,7 @@ export const api = {
     return USE_MOCK ? fromMock(store.listDocuments(), 150) : get('/documents')
   },
 
-  /** Backend: POST /api/documents/work-order {tag} → DocumentItem (writes the .docx) */
+  /** Backend (proposed): POST /api/documents/work-order {tag} → DocumentItem (writes the .docx) */
   async createWorkOrder(tag: string): Promise<DocumentItem> {
     if (!USE_MOCK) return post('/documents/work-order', { tag })
     await delay(700)
@@ -227,7 +334,7 @@ export const api = {
     return store.addWorkOrder(tag)
   },
 
-  /** Backend: POST /api/documents/bad-actor-report → DocumentItem (writes the .xlsx) */
+  /** Backend (proposed): POST /api/documents/bad-actor-report → DocumentItem (writes the .xlsx) */
   async exportBadActorReport(): Promise<DocumentItem> {
     if (!USE_MOCK) return post('/documents/bad-actor-report')
     await delay(600)
@@ -235,7 +342,7 @@ export const api = {
     return store.addBadActorReport()
   },
 
-  /** Backend: POST /api/documents/:id/approve */
+  /** Backend (proposed): POST /api/documents/:id/approve */
   async approveWorkOrder(docId: string): Promise<void> {
     if (!USE_MOCK) {
       await post(`/documents/${docId}/approve`)
@@ -245,7 +352,7 @@ export const api = {
     store.approveWorkOrder(docId)
   },
 
-  /** Backend: PUT /api/documents/:id/work-order */
+  /** Backend (proposed): PUT /api/documents/:id/work-order */
   async saveWorkOrder(docId: string, draft: WorkOrderDraft): Promise<void> {
     if (!USE_MOCK) {
       await request('PUT', `/documents/${docId}/work-order`, draft)
@@ -255,7 +362,7 @@ export const api = {
     store.updateWorkOrder(docId, draft)
   },
 
-  /** Backend: GET /api/documents/:id/download streams the file. */
+  /** Backend (proposed): GET /api/documents/:id/download streams the file. */
   downloadUrl(doc: DocumentItem): string | null {
     return USE_MOCK ? null : `/api/documents/${doc.id}/download`
   },
@@ -284,13 +391,10 @@ export const api = {
     return USE_MOCK ? fromMock(store.listBlocked(), 80) : get('/privacy/blocked')
   },
 
-  getAuditLog(): Promise<AuditEntry[]> {
-    return USE_MOCK ? fromMock(store.listAudit(), 120) : get('/audit-log')
-  },
-
-  /** Records a client-side permission denial (backend logs its own). */
-  logDenied(tool: string, input: string): void {
-    if (USE_MOCK) store.logAudit(tool, input, 'Not allowed for this role', 'denied')
+  /** Backend (proposed): GET /api/audit-log → audit_log rows */
+  async getAuditLog(): Promise<AuditEntry[]> {
+    if (USE_MOCK) return fromMock(store.listAudit(), 120)
+    return (await get<BackendAuditRow[]>('/audit-log')).map(toAuditEntry)
   },
 }
 

@@ -10,18 +10,19 @@ import {
   ShieldCheck,
   Sun,
   Upload,
-  UserRound,
+  LogOut,
+  UserPlus,
   Users,
   Wrench,
   X,
   type LucideIcon,
 } from 'lucide-react'
 import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { SITE, USE_MOCK } from '../api/client'
 import { useBlockedAttempts, usePrivacyStatus } from '../hooks/usePrivacy'
 import { useRole } from '../lib/role'
-import { ROLES, type Permission, type RoleGroup, type RoleId } from '../lib/roles'
+import type { Permission } from '../lib/roles'
 import { useTheme } from '../lib/theme'
 import { Select } from './ui'
 
@@ -39,10 +40,9 @@ const NAV: NavItem[] = [
   { to: '/agent', label: 'Ask the agent', icon: MessageSquare, perm: 'ask_agent' },
   { to: '/documents', label: 'Documents', icon: FileText, perm: 'view_documents' },
   { to: '/privacy', label: 'Privacy', icon: ShieldCheck },
+  { to: '/users', label: 'Users', icon: UserPlus, perm: 'manage_users' },
   { to: '/roles', label: 'Roles & access', icon: Users },
 ]
-
-const GROUP_ORDER: RoleGroup[] = ['Plant leadership', 'Maintenance & reliability', 'Shop floor', 'Support']
 
 export default function Layout() {
   return (
@@ -131,35 +131,90 @@ function OfflinePill() {
   )
 }
 
-/** Role switcher grouped by level of the plant hierarchy (demo: stands in for sign-in). */
-function RoleSelect() {
-  const { role, setRole, user } = useRole()
+/** Signed-in person: name + role, with links and sign-out. */
+function UserMenu() {
+  const { account, def, can, signOut } = useRole()
+  const [open, setOpen] = useState(false)
+  const navigate = useNavigate()
+  const initials = account.name
+    .split(/[\s.]+/)
+    .filter(Boolean)
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
+  const go = (to: string) => {
+    setOpen(false)
+    navigate(to)
+  }
+
   return (
-    <label className="relative flex w-44 items-center sm:w-60" title={`Signed in as ${user}`}>
-      <span className="sr-only">Role</span>
-      <UserRound className="pointer-events-none absolute left-3 size-4 text-ink-2" aria-hidden />
-      <select
-        value={role}
-        onChange={(e) => setRole(e.target.value as RoleId)}
-        className="h-10 w-full cursor-pointer appearance-none truncate rounded-xl border border-line bg-surface pr-9 pl-9 text-sm text-ink hover:bg-surface-2"
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className="flex h-10 items-center gap-2.5 rounded-xl border border-line bg-surface pr-2.5 pl-1.5 hover:bg-surface-2"
       >
-        {GROUP_ORDER.map((g) => (
-          <optgroup key={g} label={g}>
-            {ROLES.filter((r) => r.group === g).map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.label}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-3 size-4 text-ink-2" aria-hidden />
-    </label>
+        <span className="flex size-7 items-center justify-center rounded-lg bg-accent-soft text-xs font-semibold text-accent-ink">
+          {initials}
+        </span>
+        <span className="hidden text-left leading-tight sm:block">
+          <span className="block max-w-40 truncate text-sm font-medium text-ink">{account.name}</span>
+          <span className="block max-w-40 truncate text-[11px] text-ink-2">{def.label}</span>
+        </span>
+        <ChevronDown className="size-4 text-ink-2" aria-hidden />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
+          <div role="menu" className="absolute right-0 z-40 mt-2 w-64 overflow-hidden rounded-xl border border-line bg-surface shadow-xl">
+            <div className="border-b border-line px-4 py-3">
+              <div className="text-sm font-semibold text-ink">{account.name}</div>
+              <div className="text-xs text-ink-2">
+                <span className="font-mono">{account.username}</span> · {def.label}
+              </div>
+            </div>
+            <div className="p-1.5">
+              <MenuItem icon={ShieldCheck} label="Roles & access" onClick={() => go('/roles')} />
+              {can('manage_users') && <MenuItem icon={UserPlus} label="Add people" onClick={() => go('/users')} />}
+              <MenuItem
+                icon={LogOut}
+                label="Sign out"
+                onClick={async () => {
+                  setOpen(false)
+                  await signOut()
+                  navigate('/login', { replace: true })
+                }}
+              />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function MenuItem({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-ink hover:bg-surface-2"
+    >
+      <Icon className="size-4 text-ink-2" aria-hidden />
+      {label}
+    </button>
   )
 }
 
 function TopBar() {
   const [theme, toggleTheme] = useTheme()
+  const { can } = useRole()
 
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-page/80 backdrop-blur">
@@ -184,7 +239,7 @@ function TopBar() {
 
         <div className="ml-auto flex items-center gap-2">
           <OfflinePill />
-          <RoleSelect />
+          <UserMenu />
           <button
             type="button"
             onClick={toggleTheme}
@@ -198,21 +253,25 @@ function TopBar() {
 
       {/* Compact nav below the large-screen breakpoint */}
       <nav className="flex gap-1 overflow-x-auto border-t border-line px-3 py-2 lg:hidden" aria-label="Main">
-        {NAV.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/'}
-            className={({ isActive }) =>
-              [
-                'shrink-0 rounded-lg px-3 py-1.5 text-xs',
-                isActive ? 'bg-accent-soft font-semibold text-accent-ink' : 'text-ink-2',
-              ].join(' ')
-            }
-          >
-            {item.label}
-          </NavLink>
-        ))}
+        {NAV.map((item) => {
+          const locked = item.perm ? !can(item.perm) : false
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
+              className={({ isActive }) =>
+                [
+                  'flex shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-xs',
+                  isActive ? 'bg-accent-soft font-semibold text-accent-ink' : locked ? 'text-muted' : 'text-ink-2',
+                ].join(' ')
+              }
+            >
+              {item.label}
+              {locked && <Lock className="size-3" aria-label="No access" />}
+            </NavLink>
+          )
+        })}
       </nav>
     </header>
   )

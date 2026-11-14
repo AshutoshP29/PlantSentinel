@@ -1,8 +1,8 @@
-import { Check, Minus, UserRound } from 'lucide-react'
+import { Check, Minus, UserPlus, UserRound } from 'lucide-react'
 import { Fragment } from 'react'
 import { Card, Chip, PageHeader } from '../components/ui'
 import { useRole } from '../lib/role'
-import { can, PERMISSIONS, ROLES, type PermissionDef, type RoleDef } from '../lib/roles'
+import { can, manageableRoles, PERMISSIONS, ROLE_BY_ID, ROLES, type PermissionDef, type RoleDef } from '../lib/roles'
 
 const LEVELS = [1, 2, 3, 4, 5]
 const AREAS: PermissionDef['area'][] = ['Data & analysis', 'Work orders & reports', 'Security & admin']
@@ -20,7 +20,7 @@ export default function Roles() {
       />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <Card title="Plant hierarchy" subtitle="Reporting line of the maintenance organisation. Click a role to view the app as that role.">
+        <Card title="Plant hierarchy" subtitle="Reporting line of the maintenance organisation. Each role can add accounts for the roles below it.">
           <div className="flex flex-col items-center">
             {LEVELS.map((lvl, i) => {
               const row = ROLES.filter((r) => r.level === lvl)
@@ -110,14 +110,11 @@ export default function Roles() {
 }
 
 function RoleCard({ r, current, wide = false }: { r: RoleDef; current: boolean; wide?: boolean }) {
-  const { setRole } = useRole()
+  const adds = manageableRoles(r.id)
   return (
-    <button
-      type="button"
-      onClick={() => setRole(r.id)}
-      aria-pressed={current}
-      className={`rounded-xl border px-4 py-3 text-left transition ${wide ? 'w-full' : 'w-full sm:w-60'} ${
-        current ? 'border-accent bg-accent-soft/70 shadow-sm' : 'border-line bg-surface hover:border-accent/40 hover:bg-surface-2/60'
+    <div
+      className={`rounded-xl border px-4 py-3 text-left ${wide ? 'w-full' : 'w-full sm:w-60'} ${
+        current ? 'border-accent bg-accent-soft/70 shadow-sm' : 'border-line bg-surface'
       }`}
     >
       <div className="flex items-center justify-between gap-2">
@@ -125,9 +122,19 @@ function RoleCard({ r, current, wide = false }: { r: RoleDef; current: boolean; 
         {current && <Chip tone="accent">You</Chip>}
       </div>
       <div className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-2">
-        <UserRound className="size-3.5" aria-hidden /> {r.user}
+        <UserRound className="size-3.5" aria-hidden /> Demo: <span className="font-mono">{demoUsername(r.user)}</span>
       </div>
       <p className="mt-1.5 text-xs leading-relaxed text-muted">{r.description}</p>
-    </button>
+      {adds.length > 0 && (
+        <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-2">
+          <UserPlus className="mt-px size-3.5 shrink-0 text-accent-ink" aria-hidden />
+          <span>
+            Adds: {adds.length === ROLES.length ? 'anyone' : adds.map((id) => ROLE_BY_ID[id].short).join(', ')}
+          </span>
+        </p>
+      )}
+    </div>
   )
 }
+
+const demoUsername = (name: string) => name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z.]/g, '')

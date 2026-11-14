@@ -2,26 +2,31 @@ import '@fontsource-variable/inter'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { AuthProvider, RequireAuth } from './components/AuthProvider'
 import { Gate } from './components/Gate'
 import Layout from './components/Layout'
-import { RoleProvider } from './components/RoleProvider'
 import { ToastProvider } from './components/ToastProvider'
 import './index.css'
 import Agent from './pages/Agent'
 import AssetDetail from './pages/AssetDetail'
 import Dashboard from './pages/Dashboard'
 import Documents from './pages/Documents'
+import Login from './pages/Login'
 import Privacy from './pages/Privacy'
 import Roles from './pages/Roles'
 import Upload from './pages/Upload'
+import Users from './pages/Users'
 
 const router = createBrowserRouter([
+  { path: '/login', element: <Login /> },
   {
     path: '/',
     element: (
-      <ToastProvider>
-        <Layout />
-      </ToastProvider>
+      <RequireAuth>
+        <ToastProvider>
+          <Layout />
+        </ToastProvider>
+      </RequireAuth>
     ),
     children: [
       { index: true, element: <Gate perm="view_dashboard"><Dashboard /></Gate> },
@@ -30,6 +35,7 @@ const router = createBrowserRouter([
       { path: 'agent', element: <Gate perm="ask_agent"><Agent /></Gate> },
       { path: 'documents', element: <Gate perm="view_documents"><Documents /></Gate> },
       { path: 'privacy', element: <Privacy /> },
+      { path: 'users', element: <Gate perm="manage_users"><Users /></Gate> },
       { path: 'roles', element: <Roles /> },
     ],
   },
@@ -37,8 +43,8 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <RoleProvider>
+    <AuthProvider>
       <RouterProvider router={router} />
-    </RoleProvider>
+    </AuthProvider>
   </StrictMode>,
 )

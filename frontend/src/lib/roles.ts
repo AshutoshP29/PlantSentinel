@@ -136,6 +136,7 @@ export type Permission =
   | 'export_audit_log'
   | 'run_security_tests'
   | 'clear_data'
+  | 'manage_users'
 
 export interface PermissionDef {
   id: Permission
@@ -157,6 +158,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: 'export_audit_log', label: 'Export audit log', area: 'Security & admin' },
   { id: 'run_security_tests', label: 'Run security tests', area: 'Security & admin' },
   { id: 'clear_data', label: 'Clear plant data', area: 'Security & admin' },
+  { id: 'manage_users', label: 'Add people below you', area: 'Security & admin' },
 ]
 
 const ALL_LINE: RoleId[] = [
@@ -184,6 +186,25 @@ export const GRANTS: Record<Permission, RoleId[]> = {
   export_audit_log: ['system_admin'],
   run_security_tests: ['system_admin'],
   clear_data: ['system_admin'],
+  manage_users: ['plant_head', 'maintenance_manager', 'shift_supervisor', 'system_admin'],
+}
+
+/**
+ * Who may add (and remove) accounts for which roles.
+ * Line roles manage everyone below them in the reporting line (via reportsTo).
+ * Plant Head and Maintenance Manager also onboard contractors; the System Admin manages everyone.
+ */
+export function manageableRoles(manager: RoleId): RoleId[] {
+  if (manager === 'system_admin') return ROLES.map((r) => r.id)
+  const below = (id: RoleId): RoleId[] =>
+    ROLES.filter((r) => r.reportsTo === id).flatMap((r) => [r.id, ...below(r.id)])
+  const out = below(manager)
+  if (manager === 'plant_head' || manager === 'maintenance_manager') out.push('contractor')
+  return [...new Set(out)]
+}
+
+export function canManageRole(manager: RoleId, target: RoleId): boolean {
+  return manageableRoles(manager).includes(target)
 }
 
 export const ROLE_BY_ID = Object.fromEntries(ROLES.map((r) => [r.id, r])) as Record<RoleId, RoleDef>

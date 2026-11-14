@@ -1,22 +1,20 @@
-// Mutable demo state (mock mode only): documents, audit log, blocked attempts.
-// Mirrors what the backend will keep in SQLite.
+// Mutable demo state (mock mode only): signed-in user, accounts, documents, audit log,
+// blocked attempts. Mirrors what the backend will keep in SQLite.
 
-import { DEFAULT_ROLE, ROLE_BY_ID, type RoleId } from '../lib/roles'
+import { sha256 } from '../lib/sha256'
+import { canManageRole, ROLE_BY_ID, ROLES, type RoleId } from '../lib/roles'
+import { toAsset, toBadActor } from './adapters'
 import { emit } from './events'
 import { assets, badActors } from './mock'
-import type { AuditEntry, AuditStatus, BlockedAttempt, DocumentItem, WorkOrderDraft } from './types'
-
-export type SessionRole = RoleId
-
-let session: RoleId = DEFAULT_ROLE
-export const getSession = () => ({ role: session, user: ROLE_BY_ID[session].user })
-export const setSession = (role: RoleId) => {
-  session = role
-}
-
-const RE = ROLE_BY_ID.reliability_engineer.user
-const TECH = ROLE_BY_ID.technician.user
-const MGR = ROLE_BY_ID.maintenance_manager.user
+import type {
+  AuditEntry,
+  AuditStatus,
+  BlockedAttempt,
+  DocumentItem,
+  NewUser,
+  UserAccount,
+  WorkOrderDraft,
+} from './types'
 
 const now = () => new Date().toISOString()
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString()
@@ -30,7 +28,156 @@ const daysAgo = (d: number, h = 11) => {
 let seq = 100
 const id = (p: string) => `${p}-${++seq}`
 
-// ---------- documents ----------
+// =====================================================================================
+// Accounts and session
+// =====================================================================================
+
+/** Password for every seeded demo account (shown on the sign-in screen in demo mode). */
+export const DEMO_PASSWORD = 'demo123'
+
+interface StoredUser extends UserAccount {
+  salt: string
+  password_hash: string
+}
+
+const hashPassword = (salt: string, password: string) => sha256(`${salt}:${password}`)
+
+/** One demo account per role, e.g. a.rao (Reliability Engineer). */
+const SEED_USERS: StoredUser[] = ROLES.map((r, i) => {
+  const username = r.user.toLowerCase().replace(/\s+/g, '').replace(/[^a-z.]/g, '')
+  const salt = `seed-${i}`
+  return {
+    username,
+    name: r.user,
+    role: r.id,
+    added_by: null,
+    created_at: '2026-11-01T09:00:00.000Z',
+    salt,
+    password_hash: hashPassword(salt, DEMO_PASSWORD),
+  }
+})
+
+const USERS_KEY = 'ps-demo-users' // accounts added in demo mode survive a page refresh
+
+function loadAdded(): StoredUser[] {
+  try {
+    const raw = localStorage.getItem(USERS_KEY)
+    return raw ? (JSON.parse(raw) as StoredUser[]) : []
+  } catch {
+    return []
+  }
+}
+
+let added: StoredUser[] = loadAdded()
+
+function saveAdded() {
+  try {
+    localStorage.setItem(USERS_KEY, JSON.stringify(added))
+  } catch {
+    /* storage unavailable: accounts last for this session only */
+  }
+}
+
+const allUsers = (): StoredUser[] => [...SEED_USERS, ...added]
+const publicUser = ({ salt: _s, password_hash: _h, ...u }: StoredUser): UserAccount => u
+
+let current: UserAccount | null = null
+
+export function getSession(): { role: RoleId | ''; user: string; username: string } {
+  return current
+    ? { role: current.role as RoleId, user: current.name, username: current.username }
+    : { role: '', user: 'Not signed in', username: '' }
+}
+
+export function setCurrentUser(u: UserAccount | null) {
+  current = u
+}
+
+export function findUser(username: string): UserAccount | null {
+  const u = allUsers().find((x) => x.username === username)
+  return u ? publicUser(u) : null
+}
+
+/** Returns the account, or null for a wrong username/password (both logged). */
+export function signIn(username: string, password: string): UserAccount | null {
+  const u = allUsers().find((x) => x.username === username.trim().toLowerCase())
+  const ok = Boolean(u && u.password_hash === hashPassword(u.salt, password))
+  const status: AuditStatus = ok ? 'allowed' : 'blocked'
+  audit.push({
+    id: id('a'),
+    at: now(),
+    user: u?.name ?? username,
+    role: u?.role ?? '',
+    tool: 'sign_in',
+    input: `username=${username}`,
+    output: ok ? 'signed in' : 'wrong username or password',
+    status,
+  })
+  emit('audit')
+  if (!ok || !u) return null
+  current = publicUser(u)
+  return current
+}
+
+export function signOut() {
+  if (current) logAudit('sign_out', `username=${current.username}`, 'signed out')
+  current = null
+}
+
+export function listUsers(): UserAccount[] {
+  return allUsers().map(publicUser)
+}
+
+export function createUser(input: NewUser): UserAccount {
+  if (!current) throw new Error('Sign in first')
+  const role = input.role as RoleId
+  if (!ROLE_BY_ID[role]) throw new Error('Unknown role')
+  if (!canManageRole(current.role as RoleId, role)) {
+    logAudit('create_user', `role=${role}`, 'not allowed', 'blocked')
+    throw new Error(`${ROLE_BY_ID[current.role as RoleId].label} can't add a ${ROLE_BY_ID[role].label}`)
+  }
+  const username = input.username.trim().toLowerCase()
+  if (!/^[a-z][a-z0-9._-]{2,31}$/.test(username)) throw new Error('Username: 3–32 characters, letters, digits, dots')
+  if (allUsers().some((u) => u.username === username)) throw new Error('That username is taken')
+  if (input.password.length < 8) throw new Error('Password must be at least 8 characters')
+  const salt = Math.random().toString(36).slice(2)
+  const user: StoredUser = {
+    username,
+    name: input.name.trim(),
+    role,
+    added_by: current.username,
+    created_at: now(),
+    salt,
+    password_hash: hashPassword(salt, input.password),
+  }
+  added = [...added, user]
+  saveAdded()
+  logAudit('create_user', `${username} as ${ROLE_BY_ID[role].label}`, 'account created')
+  emit('users')
+  return publicUser(user)
+}
+
+export function removeUser(username: string): void {
+  if (!current) throw new Error('Sign in first')
+  const target = added.find((u) => u.username === username)
+  if (!target) throw new Error('Demo accounts can’t be removed')
+  if (target.username === current.username) throw new Error('You can’t remove yourself')
+  if (!canManageRole(current.role as RoleId, target.role as RoleId)) {
+    logAudit('remove_user', username, 'not allowed', 'blocked')
+    throw new Error('You can only remove people below you')
+  }
+  added = added.filter((u) => u.username !== username)
+  saveAdded()
+  logAudit('remove_user', username, 'account removed')
+  emit('users')
+}
+
+// =====================================================================================
+// Documents
+// =====================================================================================
+
+const RE = 'A. Rao'
+const MGR = 'S. Kulkarni'
 
 function woDraft(over: Partial<WorkOrderDraft> & Pick<WorkOrderDraft, 'wo_number' | 'tag' | 'asset_name'>): WorkOrderDraft {
   return {
@@ -53,18 +200,18 @@ const documents: DocumentItem[] = [
     id: 'doc-13',
     file_name: 'WO-2026-013.docx',
     kind: 'work_order',
-    tag: 'C-201',
+    tag: 'C-203',
     created_by: RE,
     created_at: daysAgo(1, 16),
     work_order: woDraft({
       wo_number: 'WO-2026-013',
-      tag: 'C-201',
+      tag: 'C-203',
       asset_name: 'Recycle gas compressor',
       priority: 'High',
-      problem: 'Repeated suction valve failures (3 in 180 days).',
-      suspected_cause: 'Valve plate fatigue from liquid carry-over; verify separator level control.',
-      recommended_steps: 'Replace suction valves; inspect knock-out drum level transmitter; trend discharge temperature.',
-      references: 'Compressor manual p. 41; work orders WO-24877, WO-24930.',
+      problem: 'Bearing overheating: 3 events in 180 days, gap between failures down from 300 to 60 days.',
+      suspected_cause: 'Poor heat dissipation at the NDE bearing; check lube oil condition and cooler.',
+      recommended_steps: 'Sample and replace lube oil; clean oil cooler; trend bearing temperature for 2 weeks.',
+      references: 'Compressor manual p. 41; work orders WO-0427, WO-0450, WO-0478.',
       status: 'approved',
       approved_by: MGR,
     }),
@@ -73,17 +220,17 @@ const documents: DocumentItem[] = [
     id: 'doc-12',
     file_name: 'WO-2026-012.docx',
     kind: 'work_order',
-    tag: 'E-301',
+    tag: 'E-302',
     created_by: RE,
     created_at: daysAgo(3, 10),
     work_order: woDraft({
       wo_number: 'WO-2026-012',
-      tag: 'E-301',
-      asset_name: 'Crude preheat exchanger',
-      problem: 'Tube-side fouling; approach temperature up 9 °C.',
-      suspected_cause: 'Heavy crude blend increasing deposit rate.',
+      tag: 'E-302',
+      asset_name: 'VDU preheat exchanger',
+      problem: 'Fouling: 3 cleanings in 180 days, poor heat transfer and high DP.',
+      suspected_cause: 'Heavy feed increasing deposit rate.',
       recommended_steps: 'Schedule hydro-jet cleaning at next opportunity; review antifoulant dosing.',
-      references: 'SOP exchanger cleaning p. 2.',
+      references: 'SOP exchanger cleaning p. 2; work orders WO-0417, WO-0447, WO-0472.',
       status: 'approved',
       approved_by: MGR,
     }),
@@ -106,8 +253,10 @@ export function listDocuments(): DocumentItem[] {
 export function addWorkOrder(tag: string): DocumentItem {
   woCounter += 1
   const wo = `WO-2026-${String(woCounter).padStart(3, '0')}`
-  const asset = assets.find((a) => a.tag === tag)
-  const row = badActors.find((b) => b.tag === tag)
+  const raw = assets.find((a) => a.tag === tag)
+  const asset = raw ? toAsset(raw) : undefined
+  const rowRaw = badActors.find((b) => b.tag === tag)
+  const row = rowRaw ? toBadActor(rowRaw, asset, 1) : undefined
   const user = getSession().user
   const draft =
     tag === 'P-101'
@@ -116,11 +265,11 @@ export function addWorkOrder(tag: string): DocumentItem {
           tag,
           asset_name: 'Feed pump',
           priority: 'High',
-          problem: 'Repeated mechanical seal leakage: 4 failures in 180 days, MTBF down 60%.',
+          problem: 'Repeated mechanical seal leakage: 4 failures in 180 days; gap between failures down from 150 to 51 days.',
           suspected_cause: 'Shaft misalignment (0.3 mm found on 12 Nov 2026); verify on inspection.',
           recommended_steps:
             'Laser-align pump and motor shafts to within 0.05 mm; check seal and bearings; verify seal flush plan; record findings.',
-          references: 'Inspection IR-2026-118 p. 2; pump manual p. 18; work orders WO-24690 to WO-25117.',
+          references: 'Inspection IR-2026-118 p. 2; pump manual p. 18; work orders WO-0423, WO-0441, WO-0465, WO-0486.',
           requested_by: user,
         })
       : woDraft({
@@ -128,7 +277,7 @@ export function addWorkOrder(tag: string): DocumentItem {
           tag,
           asset_name: asset?.name ?? tag,
           priority: asset?.criticality ?? 'Medium',
-          problem: row ? `${row.failure_mode}: ${row.events} events in 180 days.` : 'Describe the problem.',
+          problem: row ? `${row.failure_mode}: ${row.events} event(s) in 180 days.` : 'Describe the problem.',
           suspected_cause: 'To be confirmed on inspection.',
           recommended_steps: 'Inspect, repair as found and record findings.',
           references: `${tag} work-order history.`,
@@ -178,13 +327,15 @@ export function updateWorkOrder(docId: string, draft: WorkOrderDraft): void {
   }
 }
 
-// ---------- audit log ----------
+// =====================================================================================
+// Audit log
+// =====================================================================================
 
 const audit: AuditEntry[] = [
-  { id: id('a'), at: minutesAgo(52), user: RE, role: 'reliability_engineer', tool: 'get_bad_actors', input: 'top_n=10', output: '10 assets', status: 'allowed' },
-  { id: id('a'), at: minutesAgo(47), user: TECH, role: 'technician', tool: 'get_asset_history', input: 'tag=C-201', output: '9 work orders', status: 'allowed' },
-  { id: id('a'), at: minutesAgo(45), user: TECH, role: 'technician', tool: 'export_report', input: 'type=bad_actors', output: 'Not allowed for Technician', status: 'denied' },
-  { id: id('a'), at: minutesAgo(31), user: RE, role: 'reliability_engineer', tool: 'search_manuals', input: 'compressor valve failure', output: '3 passages', status: 'allowed' },
+  { id: id('a'), at: minutesAgo(52), user: RE, role: 'reliability_engineer', tool: 'get_bad_actors', input: 'top_n=10', output: '10 rows', status: 'allowed' },
+  { id: id('a'), at: minutesAgo(47), user: 'K. Singh', role: 'technician', tool: 'get_asset_history', input: 'tag=C-203', output: '25 work orders', status: 'allowed' },
+  { id: id('a'), at: minutesAgo(45), user: 'K. Singh', role: 'technician', tool: 'export_report', input: 'type=bad_actors', output: 'Not allowed for Technician', status: 'blocked' },
+  { id: id('a'), at: minutesAgo(31), user: RE, role: 'reliability_engineer', tool: 'search_manuals', input: 'compressor bearing overheating', output: '3 passages', status: 'allowed' },
 ]
 
 export function logAudit(tool: string, input: string, output: string, status: AuditStatus = 'allowed'): void {
@@ -197,7 +348,9 @@ export function listAudit(): AuditEntry[] {
   return audit.slice().sort((a, b) => b.at.localeCompare(a.at))
 }
 
-// ---------- blocked attempts ----------
+// =====================================================================================
+// Blocked attempts
+// =====================================================================================
 
 const blocked: BlockedAttempt[] = []
 

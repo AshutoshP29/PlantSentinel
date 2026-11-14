@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 
 // Tiny pub/sub so screens refresh when shared data changes
 // (a new document, a new audit row, a blocked attempt).
-export type Topic = 'documents' | 'audit' | 'blocked' | 'ingest'
+export type Topic = 'documents' | 'audit' | 'blocked' | 'ingest' | 'users'
 
 const versions = new Map<Topic, number>()
 const listeners = new Map<Topic, Set<() => void>>()

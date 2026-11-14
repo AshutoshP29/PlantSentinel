@@ -43,7 +43,7 @@ interface Message {
 const SUGGESTIONS = [
   { label: 'Why does P-101 keep failing?', q: 'Why does P-101 keep failing and what should we do?', icon: Wrench },
   { label: 'Assets at risk next', q: 'Which assets are at risk next?', icon: TrendingUp },
-  { label: 'Summarise C-201', q: 'Summarise C-201', icon: Layers },
+  { label: 'Summarise C-203', q: 'Summarise C-203', icon: Layers },
 ]
 
 const TAG_RE = /\b([PCEM])-?(\d{3})\b/i

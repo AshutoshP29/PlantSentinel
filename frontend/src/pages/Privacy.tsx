@@ -25,7 +25,7 @@ import { PERMISSIONS, roleLabel } from '../lib/roles'
 import { TD, TH, type Tone } from '../lib/status'
 import { useToast } from '../lib/toast'
 
-const AUDIT_TONE: Record<AuditStatus, Tone> = { allowed: 'good', blocked: 'critical', denied: 'warning' }
+const AUDIT_TONE: Record<AuditStatus, Tone> = { allowed: 'good', blocked: 'critical', error: 'warning' }
 
 export default function Privacy() {
   const status = usePrivacyStatus()
@@ -265,7 +265,7 @@ function AuditLog() {
             { value: 'all', label: 'All statuses' },
             { value: 'allowed', label: 'Allowed' },
             { value: 'blocked', label: 'Blocked' },
-            { value: 'denied', label: 'Denied' },
+            { value: 'error', label: 'Error' },
           ]}
           className="w-40"
         />
@@ -335,11 +335,11 @@ function AuditLogGate() {
 
 /** What the signed-in role can do, from the permission matrix in lib/roles.ts. */
 function YourAccess() {
-  const { def, can } = useRole()
+  const { def, can, account } = useRole()
   return (
     <Card
       title="Your access"
-      subtitle={`Signed in as ${def.user} · ${def.label}`}
+      subtitle={`Signed in as ${account.name} · ${def.label}`}
       actions={
         <LinkButton to="/roles" size="sm" variant="soft">
           All roles

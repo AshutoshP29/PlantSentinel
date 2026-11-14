@@ -7,10 +7,18 @@ const ROW_HEIGHT = 30
 
 /** Horizontal bars, one series: events per failure-mode cluster. */
 export function FailureModesChart({ data, windowDays }: { data: FailureModeCount[]; windowDays: number }) {
-  // Real clusters sorted by size; the noise bucket always sits last.
-  const rows = [...data].sort((a, b) =>
-    a.is_noise === b.is_noise ? b.events - a.events : a.is_noise ? 1 : -1,
-  )
+  // Real clusters sorted by size; past 8 they fold into "Other"; the noise bucket always sits last.
+  const real = data.filter((m) => !m.is_noise).sort((a, b) => b.events - a.events)
+  const noise = data.filter((m) => m.is_noise)
+  const MAX = 8
+  const rows: FailureModeCount[] =
+    real.length > MAX + 1
+      ? [
+          ...real.slice(0, MAX),
+          { id: -1, name: `Other (${real.length - MAX} modes)`, events: real.slice(MAX).reduce((s, m) => s + m.events, 0), is_noise: true },
+          ...noise,
+        ]
+      : [...real, ...noise]
 
   return (
     <div>
