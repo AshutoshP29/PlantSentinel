@@ -21,13 +21,18 @@ x-ollama-image: &ollama-image ollama/ollama:0.40.16
 
 services:
   gateway:
-    image: nginx:1.27-alpine
+    # nginx with the built UI baked in (frontend/Dockerfile).
+    build:
+      context: ./frontend
+      args:
+        # Screens whose backend exists are live; the rest stay on demo data.
+        # Everything live: VITE_USE_MOCK=false.
+        VITE_USE_MOCK: ${VITE_USE_MOCK:-true}
+        VITE_LIVE: ${VITE_LIVE:-agent,assets,bad_actors,risk,work_orders,summary,failure_modes,mtbf,upload}
     ports:
       - "127.0.0.1:8080:80"
     volumes:
       - ./deploy/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # The UI: run `npm run build` in frontend/ (with VITE_USE_MOCK=false) first.
-      - ./frontend/dist:/usr/share/nginx/html:ro
     networks: [plant, edge]
     depends_on:
       backend:
@@ -43,6 +48,7 @@ services:
       CHROMA_HOST: chroma
       CHROMA_PORT: "8000"
       DB_PATH: /app/state/plantsentinel.db
+      OUTPUTS_DIR: /app/state/outputs   # generated .docx / .xlsx survive a rebuild
       LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct-q3_K_M}
       VISION_MODEL: ${VISION_MODEL:-qwen2.5vl:3b}
       EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
@@ -51,7 +57,7 @@ services:
     volumes:
       - ./data:/app/data          # raw CSV, synthetic data, manuals, scans, uploads
       - ./models:/app/models      # trained XGBoost model and metrics
-      - app_state:/app/state      # SQLite lives in a volume, not on the Windows bind mount
+      - app_state:/app/state      # SQLite and generated documents, off the Windows bind mount
     networks: [plant]
     depends_on:
       ollama:

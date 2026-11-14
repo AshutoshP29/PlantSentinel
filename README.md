@@ -107,8 +107,9 @@ After asking one question, confirm the container is on the GPU:
 docker compose exec ollama ollama ps    # PROCESSOR column should say "100% GPU"
 ```
 
-The gateway serves the UI from `frontend/dist`, so build the frontend first
-(`npm run build` in `frontend/`, with `VITE_USE_MOCK=false`). Without it `/api` still works.
+The gateway image builds the UI from `frontend/` (no host Node needed). By default the screens
+whose backend exists are live and the rest show demo data; set `VITE_USE_MOCK=false` in `.env`
+and rebuild to make everything live.
 
 Prove the isolation from inside the backend container. The internal services must answer and
 everything outside must be unreachable:

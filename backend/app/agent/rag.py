@@ -302,6 +302,7 @@ class ManualStore:
         if ephemeral:
             client = chromadb.EphemeralClient(settings=chroma_settings)
         elif s.chroma_host:
+            # Docker: the `chroma` service on the internal network.
             client = chromadb.HttpClient(
                 host=s.chroma_host, port=s.chroma_port, settings=chroma_settings
             )
