@@ -5,6 +5,7 @@
     uv run python scripts/agent_cli.py search "query"     # test retrieval
     uv run python scripts/agent_cli.py ask "question" [--demo-db]
     uv run python scripts/agent_cli.py inspect-scans [--dir DIR] [--force]  # seeding step
+    uv run python scripts/agent_cli.py rehearse [-n 3] [--show-answer]  # demo rehearsal
 
 --demo-db loads data/synthetic/*.csv into a temporary SQLite file for the run, so the agent can
 be tried before the application database is seeded. It never touches the app database.
@@ -158,6 +159,35 @@ def cmd_inspect_scans(args: argparse.Namespace) -> int:
     return 1 if any(r.status == "failed" for r in reports) else 0
 
 
+def cmd_rehearse(args: argparse.Namespace) -> int:
+    """Run the demo question N times on the seeded database and check each beat."""
+    from app.agent.rehearsal import DEMO_QUESTION, rehearse_once
+    from app.api.agent import make_context
+
+    llm.require_ollama()
+    passed = 0
+    for i in range(1, args.n + 1):
+        ctx = make_context(user="rehearsal")
+        try:
+            question = args.question or DEMO_QUESTION
+            r = asyncio.run(rehearse_once(ctx, llm.get_chat_model(), question))
+        finally:
+            ctx.conn.close()
+        passed += r["ok"]
+        marks = "  ".join(f"{k}:{'ok' if v else 'MISSING'}" for k, v in r["checks"].items())
+        print(f"run {i}: {'PASS' if r['ok'] else 'FAIL'}  {marks}  ({r['seconds']} s)")
+        print(f"   tools: {' -> '.join(r['tools'])}")
+        if r["forced_by_checklist"]:
+            print(f"   checklist had to call: {', '.join(r['forced_by_checklist'])}")
+        print(f"   cited: {', '.join(r['cited']) or '-'}   docx: {r['docx'] or '-'}")
+        if r["error"]:
+            print(f"   error: {r['error']}")
+        if args.show_answer:
+            print(f"\n{r['answer']}\n")
+    print(f"{passed}/{args.n} runs passed")
+    return 0 if passed == args.n else 1
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
@@ -172,6 +202,10 @@ def main() -> int:
     a = sub.add_parser("ask")
     a.add_argument("question")
     a.add_argument("--demo-db", action="store_true")
+    r = sub.add_parser("rehearse", help="run the P-101 demo question and check each beat")
+    r.add_argument("-n", type=int, default=3)
+    r.add_argument("--question")
+    r.add_argument("--show-answer", action="store_true")
     sc = sub.add_parser("inspect-scans", help="seeding: scans -> inspections table (slow)")
     sc.add_argument("--dir")
     sc.add_argument("--force", action="store_true", help="re-read scans already in the DB")
@@ -182,6 +216,7 @@ def main() -> int:
         "search": cmd_search,
         "ask": cmd_ask,
         "inspect-scans": cmd_inspect_scans,
+        "rehearse": cmd_rehearse,
     }
     return commands[args.cmd](args)
 

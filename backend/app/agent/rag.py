@@ -285,17 +285,30 @@ class ManualStore:
         self.embedder = embedder
 
     @classmethod
-    def from_settings(cls, embedder: Embedder | None = None) -> ManualStore:
+    def from_settings(
+        cls,
+        embedder: Embedder | None = None,
+        collection_name: str | None = None,
+        ephemeral: bool = False,
+    ) -> ManualStore:
+        """Store backed by the Chroma server (CHROMA_HOST), the embedded store (CHROMA_DIR),
+        or, with `ephemeral=True`, an in-memory collection that is never persisted."""
         s = get_settings()
         os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")  # no telemetry egress
         import chromadb
         from chromadb.config import Settings as ChromaSettings
 
-        client = chromadb.PersistentClient(
-            path=str(s.chroma_dir), settings=ChromaSettings(anonymized_telemetry=False)
-        )
+        chroma_settings = ChromaSettings(anonymized_telemetry=False)
+        if ephemeral:
+            client = chromadb.EphemeralClient(settings=chroma_settings)
+        elif s.chroma_host:
+            client = chromadb.HttpClient(
+                host=s.chroma_host, port=s.chroma_port, settings=chroma_settings
+            )
+        else:
+            client = chromadb.PersistentClient(path=str(s.chroma_dir), settings=chroma_settings)
         collection = client.get_or_create_collection(
-            s.chroma_collection, metadata={"hnsw:space": "cosine"}
+            collection_name or s.chroma_collection, metadata={"hnsw:space": "cosine"}
         )
         if embedder is None:
             from app.agent.llm import get_embeddings
