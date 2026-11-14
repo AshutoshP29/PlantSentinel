@@ -22,8 +22,20 @@ def normalise_tag(raw: str) -> str:
     return f"{m.group(1).upper()}-{m.group(2)}"
 
 
-def as_of_date() -> date:
-    return get_settings().analysis_as_of or date.today()
+def as_of_date(conn: sqlite3.Connection | None = None) -> date:
+    """End of the analysis window: ANALYSIS_AS_OF if set, else the latest work-order date.
+
+    Using the data's own end date keeps "last 180 days" stable however long after seeding the
+    demo runs. Falls back to today only when there are no work orders at all.
+    """
+    pinned = get_settings().analysis_as_of
+    if pinned:
+        return pinned
+    if conn is not None:
+        row = conn.execute("SELECT MAX(date) AS d FROM work_orders").fetchone()
+        if row and row["d"]:
+            return date.fromisoformat(str(row["d"])[:10])
+    return date.today()
 
 
 def get_asset(conn: sqlite3.Connection, tag: str) -> dict | None:
@@ -76,5 +88,5 @@ def asset_totals(conn: sqlite3.Connection, since: date) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def window_start(days: int | None = None) -> date:
-    return as_of_date() - timedelta(days=days or get_settings().analysis_window_days)
+def window_start(conn: sqlite3.Connection | None, days: int | None = None) -> date:
+    return as_of_date(conn) - timedelta(days=days or get_settings().analysis_window_days)

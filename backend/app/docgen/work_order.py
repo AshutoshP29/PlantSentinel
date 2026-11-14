@@ -42,6 +42,7 @@ class WorkOrderData:
     pattern: dict
     history: list[dict]
     citations: list[Citation]
+    inspection: dict | None = None  # latest inspection (inspections.to_api shape)
     created: datetime = field(default_factory=datetime.now)
     work_order_id: str = ""
 
@@ -145,6 +146,23 @@ def build_work_order(wo: WorkOrderData, out_dir: Path) -> Path:
             cells = table.add_row().cells
             for cell, key in zip(cells, ("id", "date", "description", "action_taken"), strict=True):
                 cell.text = str(h.get(key) or "")
+
+    if wo.inspection:
+        insp = wo.inspection
+        doc.add_paragraph(
+            f"Latest inspection {insp['id']} ({insp.get('date') or 'undated'}"
+            + (f", report {insp['report_no']}" if insp.get("report_no") else "")
+            + "):"
+        )
+        findings = insp.get("findings") or []
+        _bullets(
+            doc,
+            [
+                f"{x['item']}: {x['result']}" + (" (flagged)" if x.get("flagged") else "")
+                for x in findings
+            ]
+            or ["No findings recorded."],
+        )
 
     _heading(doc, "4. Probable causes and supporting evidence")
     if rec.probable_causes:

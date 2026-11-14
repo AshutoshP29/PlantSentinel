@@ -29,14 +29,16 @@ class Settings(BaseSettings):
     llm_keep_alive_s: int = 1800  # keep the model loaded between requests
 
     # Agent / RAG
-    agent_max_iterations: int = 8  # max agent->tools round trips per question
+    agent_max_tool_calls: int = 8  # max tool calls per question (spec); then answer
     chroma_collection: str = "manuals"
     rag_top_k: int = 5
     rag_chunk_chars: int = 900
     rag_chunk_overlap: int = 150
     rag_max_distance: float = 0.6  # cosine distance; weaker matches are dropped as irrelevant
     analysis_window_days: int = 180  # "recent" window for failure counts (bad-actor window)
-    analysis_as_of: date | None = None  # pin "today" for analytics (demo); None = real date
+    # End of the analysis window (env ANALYSIS_AS_OF=2026-11-14). None = latest work-order
+    # date in the DB, so the planted stories don't age out of the 180-day window.
+    analysis_as_of: date | None = None
     site_name: str = "Demo Refinery"  # shown on the dashboard
 
     # Storage
@@ -45,7 +47,9 @@ class Settings(BaseSettings):
     db_path: Path = REPO_ROOT / "data" / "plantsentinel.db"
     chroma_dir: Path = REPO_ROOT / "data" / "chroma"
     manuals_dir: Path = REPO_ROOT / "data" / "docs" / "manuals"
-    outputs_dir: Path = REPO_ROOT / "outputs"  # generated work orders (.docx)
+    outputs_dir: Path = REPO_ROOT / "outputs"  # generated documents (.docx / .xlsx)
+    scans_dir: Path = REPO_ROOT / "data" / "scans"  # scanned inspection reports
+    injection_docs_dir: Path = REPO_ROOT / "data" / "docs" / "demo_injection"
     # When set, use a Chroma server (the `chroma` Compose service) instead of the embedded
     # store in chroma_dir.
     chroma_host: str | None = None

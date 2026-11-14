@@ -17,11 +17,12 @@ external network calls at runtime.
 - Ollama, with the models pulled:
 
   ```powershell
-  ollama pull qwen2.5:7b-instruct-q3_K_M
-  ollama pull qwen2.5vl:3b
-  ollama pull nomic-embed-text
-  # low-VRAM fallback (set LLM_MODEL=qwen2.5:3b-instruct)
-  ollama pull qwen2.5:3b-instruct
+  # defaults in backend/app/config.py (sized for a 6 GB GPU)
+  ollama pull qwen2.5:7b-instruct-q3_K_M   # chat / agent (LLM_MODEL)
+  ollama pull qwen2.5vl:3b                 # scanned inspections (VISION_MODEL)
+  ollama pull nomic-embed-text             # embeddings (EMBED_MODEL)
+  ollama pull qwen2.5:3b-instruct          # faster fallback (set LLM_MODEL=qwen2.5:3b-instruct)
+  # 8+ GB GPU: qwen2.5:7b-instruct and qwen2.5vl:7b
   ```
 
 ## Setup
@@ -130,23 +131,36 @@ Chroma store, and `OLLAMA_HOST` defaults to Ollama on the host.
 - `data/synthetic/`: generated assets and work orders (`scripts/generate_synthetic.py`).
 - `data/docs/`: manuals and SOPs. `data/scans/`: scanned inspection reports.
 
-## Agent, RAG and work orders
+## Agent, RAG and documents
 
-Set `OLLAMA_HOST` (default `http://localhost:11434`) if Ollama runs elsewhere. Then:
+Set `OLLAMA_HOST` (default `http://localhost:11434`) if Ollama runs elsewhere. The analysis
+window ends at the latest work-order date; pin it with `ANALYSIS_AS_OF=2026-11-14`.
 
 ```powershell
 uv run python scripts/agent_cli.py check            # Ollama + models; --pull fetches missing ones
 uv run python scripts/agent_cli.py ingest           # index data/docs/manuals into ChromaDB
-uv run python scripts/agent_cli.py search "seal overheating causes"
-uv run python scripts/agent_cli.py ask "Investigate P-101 and generate a work order" --demo-db
+uv run python scripts/agent_cli.py inspect-scans    # seeding: data/scans/* -> inspections (slow)
+uv run python scripts/agent_cli.py search "seal failure misalignment"
+uv run python scripts/agent_cli.py ask "Why does P-101 keep failing?" --demo-db
 ```
 
-API: `POST /api/agent/chat` (`{"message": ..., "history": [...]}`) streams server-sent events
-`run_started`, `status`, `tool_started`, `tool_completed`, `sources`, `work_order`, `answer`,
-`error`, `done`. `GET /api/agent/status` reports readiness; generated `.docx` files download from
-`GET /api/agent/work-orders/{file}`. Real-model tests: `uv run pytest -m integration`.
+Agent tools (brief section 7): `get_asset_history`, `get_bad_actors`, `predict_risk`,
+`search_manuals`, `read_inspection`, `generate_work_order`, `export_report`; at most 8 tool
+calls per question. Calls to tools off the allow-list, or carrying a URL / e-mail, are blocked
+by the `ToolGuard` hook (`app/agent/tools.py`) and reported as `blocked` events.
 
-The manuals in `data/docs/manuals/` are synthetic demo documents, not real OEM manuals.
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/agent/ask` `{question, tag}` | SSE in the frontend contract: `step`, `token`, `done`, `blocked`, `error` |
+| `POST /api/agent/chat` `{message, history}` | full agent event stream (`graph.EVENT_TYPES`) |
+| `GET /api/agent/status` | Ollama, models and manual index readiness |
+| `GET /api/assets/{tag}/inspection` | latest inspection (404 when none) |
+| `POST /api/documents/work-order` `{tag}` | draft work order (.docx) |
+| `POST /api/documents/bad-actor-report` | bad-actor report (.xlsx) |
+| `GET /api/documents`, `GET /api/documents/{id}/download` | list / download generated files |
+
+Real-model tests: `uv run pytest -m integration`. The manuals in `data/docs/manuals/` and the
+vendor bulletin in `data/docs/demo_injection/` (prompt-injection demo) are synthetic.
 
 ## Commit policy
 
