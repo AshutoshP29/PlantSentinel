@@ -3,19 +3,19 @@
 // Live vs demo, per screen:
 //   VITE_USE_MOCK=false            everything talks to the FastAPI backend
 //   VITE_LIVE=agent,bad_actors     only these features are live; the rest stay on demo data
-// Features: agent, assets, bad_actors, risk, work_orders, summary, failure_modes, mtbf,
-//           privacy, audit, documents, upload.
+// Features: agent, assets, bad_actors, risk, work_orders, inspections, summary, failure_modes,
+//           mtbf, documents, upload, privacy, audit.  `npm run dev:live` = everything that exists today.
 // Raw backend shapes go through adapters.ts in both modes, so the screens never see raw fields.
 
 import { can, type RoleId } from '../lib/roles'
-import { isBlockedTool, specRole, toAsset, toAuditEntry, toBadActor, toReadings, toRisk } from './adapters'
+import { specRole, toAsset, toAuditEntry, toBadActor, toReadings, toRisk } from './adapters'
 import { runMockAgent, runMockInjection } from './agentMock'
 import { emit } from './events'
 import * as mock from './mock'
 import * as store from './store'
 import type {
+  AgentEvent,
   AgentStatus,
-  AgentStreamEvent,
   Asset,
   AssetDetail,
   AuditEntry,
@@ -51,6 +51,7 @@ export type Feature =
   | 'bad_actors'
   | 'risk'
   | 'work_orders'
+  | 'inspections'
   | 'summary'
   | 'failure_modes'
   | 'mtbf'
@@ -164,19 +165,34 @@ const scale = (f: DashboardFilters) => f.window_days / 180
 
 const streamBlocked: BlockedAttempt[] = []
 
-/** Turns a blocked tool call from any agent stream into the red alert. */
-function noteBlocked(tool: string, args: Record<string, unknown>, summary: string) {
-  const target = String(args.url ?? args.target ?? args.host ?? tool)
-  streamBlocked.push({
-    id: `s-${Date.now()}`,
-    at: new Date().toISOString(),
-    tool,
-    target: target.replace(/^https?:\/\//, '').split('/')[0],
-    source: 'agent run',
-    reason: summary.replace(/^blocked:\s*/i, '') || 'Not on allow-list',
-  })
-  if (!isLive('audit')) store.logAudit(tool, JSON.stringify(args), summary, 'blocked')
+/** A guard `blocked` event from any agent stream becomes the red alert. */
+function noteBlocked(attempt: BlockedAttempt) {
+  if (streamBlocked.some((b) => b.id && b.id === attempt.id)) return
+  streamBlocked.push({ ...attempt, id: attempt.id || `s-${Date.now()}`, at: attempt.at || new Date().toISOString() })
+  if (!isLive('audit')) store.logAudit(attempt.tool, attempt.target, attempt.reason, 'blocked')
   emit('blocked')
+}
+
+/**
+ * Wraps an agent event handler: forwards guard `blocked` events to the alert, and (if the
+ * backend only marked a step as blocked) raises one from the step when the run ends.
+ */
+function watchBlocked(onEvent: (e: AgentEvent) => void): (e: AgentEvent) => void {
+  let sawBlocked = false
+  const blockedSteps = new Map<string, { tool: string; summary: string }>()
+  return (e) => {
+    if (e.type === 'blocked') {
+      sawBlocked = true
+      noteBlocked(e.attempt)
+    } else if (e.type === 'step' && (e.step.status === 'blocked' || /^blocked\b/i.test(e.step.summary))) {
+      blockedSteps.set(e.step.id, { tool: e.step.tool, summary: e.step.summary })
+    } else if (e.type === 'done' && !sawBlocked) {
+      for (const [id, b] of blockedSteps) {
+        noteBlocked({ id, at: new Date().toISOString(), tool: b.tool, target: b.tool, source: 'agent run', reason: b.summary })
+      }
+    }
+    onEvent(e)
+  }
 }
 
 export const api = {
@@ -300,7 +316,7 @@ export const api = {
         ? get<BackendRisk>(`/risk/${t}`).catch((e: unknown) => ((riskError = e instanceof Error ? e.message : String(e)), null))
         : fromMock(mock.riskFor(tag)),
       loadBadActorsRaw(),
-      isLive('work_orders')
+      isLive('inspections')
         ? get<Inspection>(`/assets/${t}/inspection`).catch(() => null)
         : fromMock(tag === 'P-101' ? mock.p101Inspection : null),
     ])
@@ -407,20 +423,13 @@ export const api = {
   // ---------- agent ----------
 
   /**
-   * Streams one agent run. Backend: POST /api/agent/chat {message, history} → SSE with
-   * graph.EVENT_TYPES. Blocked tool calls also raise the red alert. Returns a cancel fn.
+   * Streams one agent run. Backend: POST /api/agent/ask {question, tag, history} → SSE,
+   * one AgentEvent JSON per `data:` line (frontend_events.FrontendStream). Returns a cancel fn.
    */
-  askAgent(message: string, tag: string | null, history: ChatTurn[], onEvent: (e: AgentStreamEvent) => void): () => void {
-    const started = new Map<string, { tool: string; args: Record<string, unknown> }>()
-    const watch = (e: AgentStreamEvent) => {
-      if (e.type === 'tool_started') started.set(e.data.call_id, { tool: e.data.tool, args: e.data.args })
-      if (e.type === 'tool_completed' && isBlockedTool(e.data.status, e.data.summary)) {
-        noteBlocked(e.data.tool, started.get(e.data.call_id)?.args ?? {}, e.data.summary)
-      }
-      onEvent(e)
-    }
-    if (!isLive('agent')) return runMockAgent(message, tag, watch)
-    return streamSse('/agent/chat', { message, history: history.slice(-20) }, watch)
+  askAgent(question: string, tag: string | null, history: ChatTurn[], onEvent: (e: AgentEvent) => void): () => void {
+    const watch = watchBlocked(onEvent)
+    if (!isLive('agent')) return runMockAgent(question, tag, watch)
+    return streamSse('/agent/ask', { question, tag, history: history.slice(-20) }, watch)
   },
 
   /** Backend: GET /api/agent/status (Ollama, models, indexed manual passages). */
@@ -437,70 +446,56 @@ export const api = {
     )
   },
 
-  /** Backend: GET /api/agent/work-orders/{file} (download_url from the work_order event). */
-  agentDownloadUrl(url: string): string | null {
-    return isLive('agent') ? url : null
-  },
-
-  /** Plays the poisoned vendor PDF scenario. Backend (proposed, privacy): POST /api/privacy/injection-test (same events). */
-  runInjectionTest(onEvent: (e: AgentStreamEvent) => void): () => void {
-    const started = new Map<string, Record<string, unknown>>()
-    const watch = (e: AgentStreamEvent) => {
-      if (e.type === 'tool_started') started.set(e.data.call_id, e.data.args)
-      if (e.type === 'tool_completed' && isBlockedTool(e.data.status, e.data.summary)) {
-        noteBlocked(e.data.tool, started.get(e.data.call_id) ?? {}, e.data.summary)
-      }
-      onEvent(e)
-    }
+  /** Plays the poisoned vendor bulletin. Backend (C, proposed): POST /api/privacy/injection-test, same events. */
+  runInjectionTest(onEvent: (e: AgentEvent) => void): () => void {
+    const watch = watchBlocked(onEvent)
     if (!isLive('privacy')) return runMockInjection(watch)
     return streamSse('/privacy/injection-test', {}, watch)
   },
 
   // ---------- documents ----------
 
+  /** Edit and approve are demo-only until the backend has endpoints for them. */
+  documentsEditable(): boolean {
+    return !isLive('documents')
+  },
+
+  /** Backend: GET /api/documents */
   getDocuments(): Promise<DocumentItem[]> {
     return isLive('documents') ? get('/documents') : fromMock(store.listDocuments(), 150)
   },
 
-  /** Backend (proposed): POST /api/documents/work-order {tag} → DocumentItem (writes the .docx) */
-  async createWorkOrder(tag: string): Promise<DocumentItem> {
-    if (isLive('documents')) return post('/documents/work-order', { tag })
+  /** Backend: POST /api/documents/work-order {tag, issue?, requested_by} → DocumentItem (+ download_url) */
+  async createWorkOrder(tag: string, issue?: string): Promise<DocumentItem> {
+    if (isLive('documents')) return post('/documents/work-order', { tag, issue, requested_by: store.getSession().user })
     await delay(700)
     store.logAudit('generate_work_order', `tag=${tag}`, 'draft created')
     return store.addWorkOrder(tag)
   },
 
-  /** Backend (proposed): POST /api/documents/bad-actor-report → DocumentItem (writes the .xlsx) */
+  /** Backend: POST /api/documents/bad-actor-report {top_n, requested_by} → DocumentItem (.xlsx) */
   async exportBadActorReport(): Promise<DocumentItem> {
-    if (isLive('documents')) return post('/documents/bad-actor-report')
+    if (isLive('documents')) return post('/documents/bad-actor-report', { top_n: 20, requested_by: store.getSession().user })
     await delay(600)
     store.logAudit('export_report', 'type=bad_actors', 'xlsx created')
     return store.addBadActorReport()
   },
 
-  /** Backend (proposed): POST /api/documents/:id/approve */
   async approveWorkOrder(docId: string): Promise<void> {
-    if (isLive('documents')) {
-      await post(`/documents/${docId}/approve`)
-      return
-    }
+    if (isLive('documents')) throw new Error('Approving is not supported by the backend yet')
     await delay(300)
     store.approveWorkOrder(docId)
   },
 
-  /** Backend (proposed): PUT /api/documents/:id/work-order */
   async saveWorkOrder(docId: string, draft: WorkOrderDraft): Promise<void> {
-    if (isLive('documents')) {
-      await request('PUT', `/documents/${docId}/work-order`, draft)
-      return
-    }
+    if (isLive('documents')) throw new Error('Editing is not supported by the backend yet')
     await delay(250)
     store.updateWorkOrder(docId, draft)
   },
 
-  /** Backend (proposed): GET /api/documents/:id/download streams the file. */
+  /** Backend: GET /api/documents/{id}/download */
   downloadUrl(doc: DocumentItem): string | null {
-    return isLive('documents') ? `/api/documents/${doc.id}/download` : null
+    return isLive('documents') ? (doc.download_url ?? `/api/documents/${encodeURIComponent(doc.id)}/download`) : null
   },
 
   // ---------- privacy ----------
@@ -546,12 +541,12 @@ function kindFor(name: string): IngestKind {
 }
 
 /**
- * POST + read a text/event-stream response with named events (sse_starlette):
- *   event: tool_started\r\n data: {...}\r\n\r\n      (": ping" comment lines are ignored)
+ * POST + read a text/event-stream response. /agent/ask sends data-only events, one JSON
+ * AgentEvent per `data:` line; named events (`event: x`) are passed as {type: x, ...data}.
+ * CRLF line breaks and `: ping` comments are handled.
  */
-function streamSse(path: string, body: unknown, onEvent: (e: AgentStreamEvent) => void): () => void {
+function streamSse(path: string, body: unknown, onEvent: (e: AgentEvent) => void): () => void {
   const ctrl = new AbortController()
-  const fail = (message: string) => onEvent({ type: 'error', data: { message } })
   void (async () => {
     try {
       const res = await fetch(`/api${path}`, {
@@ -571,7 +566,7 @@ function streamSse(path: string, body: unknown, onEvent: (e: AgentStreamEvent) =
         while ((cut = buf.indexOf('\n\n')) !== -1) {
           const block = buf.slice(0, cut)
           buf = buf.slice(cut + 2)
-          let name = 'message'
+          let name = ''
           const data: string[] = []
           for (const line of block.split('\n')) {
             if (!line || line.startsWith(':')) continue
@@ -583,15 +578,17 @@ function streamSse(path: string, body: unknown, onEvent: (e: AgentStreamEvent) =
           }
           if (!data.length) continue
           try {
-            onEvent({ type: name, data: JSON.parse(data.join('\n')) } as AgentStreamEvent)
+            const parsed = JSON.parse(data.join('\n')) as Record<string, unknown>
+            onEvent((name && name !== 'message' ? { type: name, ...parsed } : parsed) as AgentEvent)
           } catch {
             /* skip a malformed event rather than end the run */
           }
         }
       }
       emit('audit')
+      emit('documents')
     } catch (e) {
-      if (!ctrl.signal.aborted) fail(e instanceof Error ? e.message : String(e))
+      if (!ctrl.signal.aborted) onEvent({ type: 'error', message: e instanceof Error ? e.message : String(e) })
     }
   })()
   return () => ctrl.abort()

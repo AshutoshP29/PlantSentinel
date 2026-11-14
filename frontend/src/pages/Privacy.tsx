@@ -13,7 +13,6 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { isBlockedTool } from '../api/adapters'
 import { api } from '../api/client'
 import { useTopicVersion } from '../api/events'
 import type { AgentStep, AuditStatus } from '../api/types'
@@ -142,26 +141,18 @@ function InjectionCard({ latest }: { latest?: { at: string; tool: string; target
   const run = () => {
     setSteps([])
     setRunning(true)
-    // Same event stream as the agent (graph.EVENT_TYPES); a blocked tool call raises the red alert
+    // Same /agent/ask event format as the agent; the guard's `blocked` event raises the red alert
     cancelRef.current = api.runInjectionTest((e) => {
-      if (e.type === 'tool_started') {
-        setSteps((list) => [
-          ...list,
-          { id: e.data.call_id, tool: e.data.tool, args: e.data.args, summary: 'Running…', status: 'running', started_at: Date.now() },
-        ])
-      } else if (e.type === 'tool_completed') {
-        const blocked = isBlockedTool(e.data.status, e.data.summary)
-        setSteps((list) =>
-          list.map((s) =>
-            s.id === e.data.call_id
-              ? { ...s, summary: e.data.summary, status: blocked ? 'blocked' : e.data.status === 'success' ? 'done' : 'error' }
-              : s,
-          ),
-        )
-        if (blocked) toast({ title: 'Exfiltration blocked', body: `${e.data.tool}: ${e.data.summary}`, tone: 'critical' })
+      if (e.type === 'step') {
+        setSteps((list) => {
+          const i = list.findIndex((s) => s.id === e.step.id)
+          return i === -1 ? [...list, e.step] : list.map((s, j) => (j === i ? { ...s, ...e.step } : s))
+        })
+      } else if (e.type === 'blocked') {
+        toast({ title: 'Exfiltration blocked', body: `${e.attempt.tool} → ${e.attempt.target}: ${e.attempt.reason}`, tone: 'critical' })
       } else if (e.type === 'error') {
         setRunning(false)
-        toast({ title: 'Test failed', body: e.data.message, tone: 'critical' })
+        toast({ title: 'Test failed', body: e.message, tone: 'critical' })
       } else if (e.type === 'done') {
         setRunning(false)
       }

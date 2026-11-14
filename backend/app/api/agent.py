@@ -18,11 +18,11 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.agent.data import normalise_tag
-from app.agent.frontend_events import FrontendStream
+from app.agent.frontend_events import frontend_stream
 from app.agent.graph import stream_agent
 from app.agent.llm import check_ollama, get_chat_model
 from app.agent.rag import ManualStore
-from app.agent.tools import AgentContext
+from app.agent.tools import AgentContext, AuditSink, ToolGuard
 from app.config import get_settings
 from app.db import connect
 from app.guard.audit import AuditGuard
@@ -52,18 +52,28 @@ def _manual_store() -> ManualStore:
     return ManualStore.from_settings()
 
 
-def make_context(user: str = "agent", role: str = "") -> AgentContext:
-    """Per-request agent context. Every tool call goes through the auditing guard."""
+def make_context(
+    user: str = "agent",
+    role: str = "",
+    audit: AuditSink | None = None,
+    guard: ToolGuard | None = None,
+) -> AgentContext:
+    """Per-request agent context.
+
+    Every tool call goes through `guard` (default: the auditing guard, which writes audit_log
+    and blocked_attempts). `audit` optionally receives the same entries as well.
+    """
     s = get_settings()
     conn = connect(s.db_path)
     return AgentContext(
         conn=conn,
-        guard=AuditGuard(conn),
+        guard=guard or AuditGuard(conn),
         store_factory=_manual_store,
         llm_factory=get_chat_model,
         outputs_dir=s.outputs_dir,
         user=user,
         role=role,
+        audit=audit,
     )
 
 
@@ -90,13 +100,12 @@ async def ask(
 
     async def events() -> AsyncIterator[dict]:
         ctx = make_context(user=x_user or "agent", role=x_plant_role or "")
-        adapter = FrontendStream(ctx, tag)
+        raw = stream_agent(
+            question, ctx, get_chat_model(), [t.model_dump() for t in req.history], tag=tag
+        )
         try:
-            async for ev in stream_agent(
-                question, ctx, get_chat_model(), [t.model_dump() for t in req.history]
-            ):
-                for out in adapter.convert(ev):
-                    yield {"data": json.dumps(out, default=str)}
+            async for out in frontend_stream(raw, ctx, tag):
+                yield {"data": json.dumps(out, default=str)}
         finally:
             ctx.conn.close()
 

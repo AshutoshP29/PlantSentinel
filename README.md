@@ -160,6 +160,21 @@ by the `ToolGuard` hook (`app/agent/tools.py`) and reported as `blocked` events.
 | `POST /api/documents/bad-actor-report` | bad-actor report (.xlsx) |
 | `GET /api/documents`, `GET /api/documents/{id}/download` | list / download generated files |
 
+**Demo rehearsal** (on the demo laptop, after `seed_demo`): `uv run python scripts/agent_cli.py
+rehearse -n 3` asks "Why does P-101 keep failing and what should we do?" and checks each beat:
+seal history, INSP-004 cited, the manual's 0.05 mm tolerance cited, and a work-order .docx.
+For diagnosis questions the agent always checks history, the latest inspection and the
+manuals before answering; if the model skips one, the call is made for it.
+
+**Hooks for the privacy layer** (`app/agent`):
+
+- Audit: `make_context(audit=fn)` or `tools.register_audit_sink(fn)` gets one audit_log-shaped
+  row per tool call (`allowed` / `blocked` / `error`); `tools.sqlite_audit_sink(db_path)`
+  writes them to `audit_log`.
+- Injection demo: `injection_demo.stream_injection_test(ctx, llm)` runs the agent over the
+  poisoned vendor PDF (in-memory index only); wrap it with
+  `frontend_events.frontend_stream(...)` for `POST /api/privacy/injection-test`.
+
 Real-model tests: `uv run pytest -m integration`. The manuals in `data/docs/manuals/` and the
 vendor bulletin in `data/docs/demo_injection/` (prompt-injection demo) are synthetic.
 

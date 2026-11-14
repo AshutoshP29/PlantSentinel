@@ -193,3 +193,32 @@ def add_inspection(conn: sqlite3.Connection, extract: dict | None = None) -> str
     )
     conn.commit()
     return iid
+
+
+# The P-101 demo report as the scan pipeline extracts it (scripts/make_demo_scans.py).
+P101_DEMO_INSPECTION = {
+    **P101_INSPECTION,
+    "date": "2026-11-06",
+    "report_no": "INSP-004",
+    "file_name": "INSP-004_P-101.jpg",
+}
+
+
+def add_demo_inspection(conn: sqlite3.Connection) -> str:
+    """Insert P-101's demo inspection under its printed id INSP-004."""
+    import json
+
+    ex = P101_DEMO_INSPECTION
+    conn.execute(
+        "INSERT INTO inspections(id, tag, date, file_path, raw_text, extracted_json) "
+        "VALUES ('INSP-004', ?, ?, ?, ?, ?)",
+        (
+            ex["tag"],
+            ex["date"],
+            f"data/scans/{ex['file_name']}",
+            "Coupling alignment check: shaft misalignment 0.3 mm observed",
+            json.dumps(ex),
+        ),
+    )
+    conn.commit()
+    return "INSP-004"

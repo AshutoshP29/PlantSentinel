@@ -133,9 +133,10 @@ def _tag_from_name(name: str) -> str | None:
         return None
 
 
-def read_scan(path: Path, vision: VisionFn = ollama_vision) -> tuple[str, InspectionExtract]:
+def read_scan(path: Path, vision: VisionFn | None = None) -> tuple[str, InspectionExtract]:
     """Transcribe every page, then extract structured findings. Returns (raw_text, extract)."""
     pages = page_images(path)
+    vision = vision or ollama_vision
     texts = [vision(TRANSCRIBE_PROMPT, [img], None).strip() for img in pages]
     raw_text = "\n\n".join(f"[page {i}]\n{t}" for i, t in enumerate(texts, start=1))
     schema = InspectionExtract.model_json_schema()
@@ -165,7 +166,36 @@ def read_scan(path: Path, vision: VisionFn = ollama_vision) -> tuple[str, Inspec
     return raw_text, extract
 
 
-def inspection_id(conn: sqlite3.Connection, tag: str, day: str | None) -> str:
+REPORT_NO_RE = re.compile(r"(?<![A-Za-z])INSP\s*-?\s*(\d{1,6})(?!\d)", re.IGNORECASE)
+
+
+def printed_report_id(*candidates: str | None) -> str | None:
+    """'INSP-004' from the printed report number (or the file name), normalised."""
+    for text in candidates:
+        m = REPORT_NO_RE.search(text or "")
+        if m:
+            return f"INSP-{m.group(1)}"
+    return None
+
+
+def inspection_id(
+    conn: sqlite3.Connection,
+    tag: str,
+    day: str | None,
+    report_no: str | None = None,
+    file_name: str | None = None,
+) -> str:
+    """Prefer the printed report number (INSP-004) so the id matches the paper report.
+
+    Falls back to a generated INSP-<TAG>-<YYYYMMDD> id when no INSP-nnn number can be read or
+    it is already used by another inspection.
+    """
+    printed = printed_report_id(report_no, file_name)
+    taken = (
+        printed and conn.execute("SELECT 1 FROM inspections WHERE id = ?", (printed,)).fetchone()
+    )
+    if printed and not taken:
+        return printed
     base = f"INSP-{tag.replace('-', '')}-{(day or 'undated').replace('-', '')}"
     n = conn.execute("SELECT COUNT(*) FROM inspections WHERE id LIKE ?", (f"{base}%",)).fetchone()
     return base if not n[0] else f"{base}-{n[0] + 1}"
@@ -174,7 +204,7 @@ def inspection_id(conn: sqlite3.Connection, tag: str, day: str | None) -> str:
 def ingest_scans(
     conn: sqlite3.Connection,
     scans_dir: Path | None = None,
-    vision: VisionFn = ollama_vision,
+    vision: VisionFn | None = None,
     force: bool = False,
 ) -> list[ScanReport]:
     """Read every scan in `scans_dir` into the inspections table. Idempotent by file path."""
@@ -194,7 +224,7 @@ def ingest_scans(
                 raise ValueError(f"tag {ex.tag} is not in the equipment register")
             if existing:
                 conn.execute("DELETE FROM inspections WHERE id = ?", (existing[0],))
-            iid = inspection_id(conn, ex.tag, ex.date)
+            iid = inspection_id(conn, ex.tag, ex.date, ex.report_no, path.stem)
             meta = {**ex.model_dump(), "pages": len(page_images(path)), "file_name": path.name}
             conn.execute(
                 "INSERT INTO inspections(id, tag, date, file_path, raw_text, extracted_json) "
@@ -255,6 +285,3 @@ def latest_inspection(conn: sqlite3.Connection, tag: str) -> dict | None:
 def get_inspection(conn: sqlite3.Connection, inspection_id: str) -> dict | None:
     row = conn.execute("SELECT * FROM inspections WHERE id = ?", (inspection_id,)).fetchone()
     return dict(row) if row else None
-
-
-INSP_RE = re.compile(r"INSP-[A-Z0-9]+-[A-Za-z0-9]+(?:-\d+)?")
