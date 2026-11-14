@@ -20,7 +20,7 @@ the app. It shows on screen that nothing leaves the machine.
 | F4 | **Risk prediction** with reasons | XGBoost on AI4I 2020 plus SHAP top-3 reasons ("overstrain 3× typical") |
 | F5 | **Root-cause agent** with citations | LangGraph tool-calling agent; every claim cites `[INSP-004]`, a manual page or `[WO-0486]` |
 | F6 | **Documents** | work order `.docx`, bad-actor report `.xlsx` |
-| F7 | **Privacy guard** | tool allow-list, audit log with user and role, blocked-exfiltration drill, live outbound-connection count, internal-only Docker network |
+| F7 | **Privacy guard** | tool allow-list, role permissions (technician / engineer), audit log, blocked-exfiltration drill, live outbound-connection count, internal-only Docker network |
 
 ## Architecture
 
@@ -197,9 +197,22 @@ aliases of the same handlers.
 | Privacy | `GET /privacy/status`, `GET /privacy/blocked`, `GET /audit-log`, `POST /privacy/injection-test` (SSE) |
 
 Agent tools: `get_asset_history`, `get_bad_actors`, `predict_risk`, `search_manuals`,
-`read_inspection`, `generate_work_order`, `export_report`. The UI sends the user's role in the
-`X-Role` header (`engineer` or `technician`), and the backend records it in the audit log.
-Technicians can't generate or export documents in the UI; the API doesn't enforce this yet.
+`read_inspection`, `generate_work_order`, `export_report`.
+
+### Roles
+
+The UI sends the user's role in the `X-Role` header; a missing or unknown role is treated as a
+technician (least privilege). The backend enforces it (`app/guard/roles.py`):
+
+| Role | View, ask the agent | Generate work orders | Export reports |
+|---|---|---|---|
+| `technician` | yes | no | no |
+| `engineer` | yes | yes | yes |
+
+For a technician the agent is only offered the five read-only tools. If the model still tries
+`generate_work_order` or `export_report`, the guard blocks the call, writes it to the audit log
+and shows it as a blocked attempt. The document endpoints return `403`. Every audit row records
+the user and role.
 
 ## Repository layout
 
@@ -207,7 +220,7 @@ Technicians can't generate or export documents in the UI; the API doesn't enforc
 backend/app/
   analytics/   clustering, bad actors, risk model, dashboard figures
   agent/       LangGraph agent, tools, RAG, inspections, prompts, injection drill
-  guard/       audit guard (allow-list + audit_log + blocked_attempts)
+  guard/       audit guard (allow-list + audit_log + blocked_attempts), role permissions
   privacy/     connection monitor, injection drill
   ingestion/   CSV/XLSX work orders, scan seeding entry point
   docgen/      work order .docx, bad-actor report .xlsx
@@ -228,13 +241,4 @@ deploy/gateway nginx config        data/   datasets, scans, manuals        model
 | Seed step 7 (inspections) warns | `qwen2.5vl:3b` or the LLM isn't in the Ollama volume; pull it on the host, re-run `model-copy`. |
 | Risk endpoint returns 503 | The model isn't trained: re-run the seed (it trains if missing). |
 | Docker "cannot find the file specified" | Docker Desktop isn't running; start it. |
-
-## Team workflow
-
-- **Commit policy:** no AI co-author trailers or "generated with" lines in commits or PR
-  descriptions. Enforced by the `commit-msg` pre-commit hook and the `commit-policy` workflow.
-- **CI** (`lint-test`): ruff check, ruff format, pytest, frontend lint and build, on every PR
-  and push to `main`.
-- **Branch protection:** in GitHub, go to *Settings → Branches* and add a rule for `main`.
-  Require pull requests and the `backend`, `frontend` and `no-ai-coauthor` checks.
-- Work on a fresh branch from `main` for each change; merged branches are deleted.
+| Drafting a work order returns 403 | The signed-in role is a technician; sign in with a role that can export reports. |
