@@ -19,7 +19,9 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { SITE, USE_MOCK } from '../api/client'
+import { api, DATA_MODE, DEMO_SWITCHER, SITE } from '../api/client'
+import { useAuth } from '../lib/auth'
+import { ROLE_BY_ID, type RoleId } from '../lib/roles'
 import { useBlockedAttempts, usePrivacyStatus } from '../hooks/usePrivacy'
 import { useRole } from '../lib/role'
 import type { Permission } from '../lib/roles'
@@ -134,6 +136,7 @@ function OfflinePill() {
 /** Signed-in person: name + role, with links and sign-out. */
 function UserMenu() {
   const { account, def, can, signOut } = useRole()
+  const { switchUser } = useAuth()
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const initials = account.name
@@ -191,6 +194,31 @@ function UserMenu() {
                 }}
               />
             </div>
+            {DEMO_SWITCHER && (
+              <div className="border-t border-line p-1.5">
+                <div className="px-2.5 pt-1 pb-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">Switch role (demo)</div>
+                <div className="max-h-64 overflow-y-auto">
+                  {api.demoUsernames().map((d) => (
+                    <button
+                      key={d.username}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={d.username === account.username}
+                      onClick={async () => {
+                        setOpen(false)
+                        await switchUser(d.username)
+                      }}
+                      className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-surface-2 ${
+                        d.username === account.username ? 'bg-accent-soft/60 font-medium text-accent-ink' : 'text-ink'
+                      }`}
+                    >
+                      <span className="truncate">{ROLE_BY_ID[d.role as RoleId]?.label ?? d.role}</span>
+                      <span className="font-mono text-[11px] text-muted">{d.username}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -231,9 +259,12 @@ function TopBar() {
           options={[{ value: SITE, label: SITE }]}
           className="hidden w-44 sm:flex"
         />
-        {USE_MOCK && (
-          <span className="hidden rounded-lg bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent-ink md:inline">
-            Demo data
+        {DATA_MODE !== 'live' && (
+          <span
+            className="hidden rounded-lg bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent-ink md:inline"
+            title={DATA_MODE === 'mixed' ? 'Some screens use the live backend, the rest demo data' : 'All screens use built-in demo data'}
+          >
+            {DATA_MODE === 'mixed' ? 'Partly live' : 'Demo data'}
           </span>
         )}
 

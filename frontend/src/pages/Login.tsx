@@ -1,7 +1,7 @@
 import { Eye, EyeOff, Loader2, LogIn, ShieldCheck } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { DEMO_PASSWORD, SITE, USE_MOCK } from '../api/client'
+import { AUTH_SERVER, DEMO_PASSWORD, SITE } from '../api/client'
 import { useAuth } from '../lib/auth'
 import { ROLES } from '../lib/roles'
 
@@ -124,7 +124,7 @@ export default function Login() {
         </section>
 
         {/* Demo accounts */}
-        {USE_MOCK && (
+        {!AUTH_SERVER && (
           <section className="rounded-2xl border border-line bg-surface/80 p-6 backdrop-blur">
             <h2 className="text-base font-semibold text-ink">Demo accounts</h2>
             <p className="mt-1 text-xs text-ink-2">

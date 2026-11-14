@@ -14,6 +14,8 @@ import type {
   BadActorStatus,
   Criticality,
   CriticalityCode,
+  Inspection,
+  InspectionFinding,
   Reading,
   RiskPrediction,
 } from './types'
@@ -120,6 +122,26 @@ export function toAuditEntry(r: BackendAuditRow): AuditEntry {
     output: r.output,
     status: r.status,
   }
+}
+
+/** The agent reports a refused tool call as a failed tool whose summary starts with "Blocked". */
+export function isBlockedTool(status: string, summary: string): boolean {
+  return status === 'blocked' || /^blocked\b/i.test(summary)
+}
+
+/** "S1", "[S1, S2]" … → ["S1", "S2"]; matches graph.cited_refs */
+export function refsIn(text: string): string[] {
+  return [...new Set(text.match(/S\d+/g) ?? [])]
+}
+
+/** Map our detailed role onto the spec's two header roles: engineer (can export) or technician. */
+export function specRole(canExport: boolean): 'engineer' | 'technician' {
+  return canExport ? 'engineer' : 'technician'
+}
+
+/** The headline finding of an inspection: misalignment if reported, else the first flagged one. */
+export function keyFinding(i: Inspection): InspectionFinding | null {
+  return i.findings.find((f) => /misalign/i.test(f.result)) ?? i.findings.find((f) => f.flagged) ?? null
 }
 
 /** Matches bad_actors.NON_FAILURE_RE: these modes are not failures. */
