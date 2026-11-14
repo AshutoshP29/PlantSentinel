@@ -1,5 +1,5 @@
 # Linux/macOS entry point. On Windows use: .\make.ps1 <target>
-.PHONY: setup lint format test seed
+.PHONY: setup lint format test seed demo-check offline-check
 
 setup:
 	uv sync --group dev
@@ -19,4 +19,10 @@ test:
 seed:
 	uv run python scripts/seed_demo.py --reset $(ARGS)
 
-# dev, up, offline-check: added in later build steps
+demo-check:
+	uv run --offline python scripts/demo_check.py $(ARGS)
+
+# Run with Wi-Fi OFF: container isolation, then the full demo through the gateway.
+offline-check:
+	docker compose exec -T backend python /app/scripts/check_isolation.py
+	uv run --offline python scripts/demo_check.py $(ARGS)
