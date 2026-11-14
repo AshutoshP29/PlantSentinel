@@ -22,7 +22,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { api, DATA_MODE, DEMO_SWITCHER, SITE } from '../api/client'
 import { useAuth } from '../lib/auth'
 import { ROLE_BY_ID, type RoleId } from '../lib/roles'
-import { useBlockedAttempts, usePrivacyStatus } from '../hooks/usePrivacy'
+import { useBlockedAttempts, usePrivacyFeed } from '../hooks/usePrivacy'
 import { useRole } from '../lib/role'
 import type { Permission } from '../lib/roles'
 import { useTheme } from '../lib/theme'
@@ -113,7 +113,19 @@ function Sidebar() {
 }
 
 function OfflinePill() {
-  const status = usePrivacyStatus()
+  const { status, failed } = usePrivacyFeed()
+  if (failed && !status) {
+    return (
+      <NavLink
+        to="/privacy"
+        title="The privacy status endpoint isn't answering"
+        className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-line bg-surface px-3 text-sm whitespace-nowrap text-muted"
+      >
+        <span className="inline-flex size-2.5 rounded-full bg-axis" />
+        <span className="hidden sm:inline">Network status unavailable</span>
+      </NavLink>
+    )
+  }
   const external = status?.external_connections ?? 0
   const ok = external === 0
   return (

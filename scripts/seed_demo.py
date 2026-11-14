@@ -11,7 +11,7 @@ Steps (paths come from app.config, so DATA_DIR / DB_PATH / MODELS_DIR are respec
   4 clustering   failure modes: precomputed (default, deterministic) or --cluster live (Ollama)
   5 risk model   XGBoost on AI4I (trained only if missing, or --retrain)
   6 manuals      chunk + embed manuals into ChromaDB (needs Ollama embeddings)
-  7 inspections  OCR scans into the inspections table (when the ingestion pipeline exists)
+  7 inspections  read scans into the inspections table (vision model, ~15 s per scan)
   8 verify       the planted story: P-101, C-203, E-302 are the top bad actors
 
 Required steps (1-5, 8) fail the run; Ollama-dependent steps (6, 7) warn and continue.
@@ -143,24 +143,57 @@ def step_manuals(args: argparse.Namespace) -> str:
     return f"{len(reports)} manuals, {store.count()} chunks indexed ({changed} new)"
 
 
+INSPECTION_MODULES = ("app.agent.inspections", "app.ingestion.inspections")
+
+
+def _find_ingest_scans() -> Callable | None:
+    for name in INSPECTION_MODULES:
+        try:
+            fn = getattr(importlib.import_module(name), "ingest_scans", None)
+        except ImportError:
+            continue
+        if fn is not None:
+            return fn
+    return None
+
+
+def _summarise_scans(result: object) -> str:
+    """ingest_scans returns per-file reports (status added/skipped/failed) or a dict."""
+    if isinstance(result, list):
+        statuses = [getattr(r, "status", None) or r.get("status", "?") for r in result]
+        failed = [
+            f"{getattr(r, 'file', '?')}: {getattr(r, 'detail', '')}"
+            for r in result
+            if getattr(r, "status", None) == "failed"
+        ]
+        counts = ", ".join(f"{statuses.count(s)} {s}" for s in sorted(set(statuses)))
+        if failed:
+            raise Skipped(f"{counts}; failed: {'; '.join(failed)[:300]}")
+        return f"{len(result)} scans: {counts}"
+    return str(result)
+
+
 def step_inspections(args: argparse.Namespace) -> str:
     if args.skip_inspections:
         raise Skipped("skipped (--skip-inspections)")
-    try:
-        mod = importlib.import_module("app.ingestion.inspections")
-    except ImportError:
-        raise Skipped("pipeline not built yet (app.ingestion.inspections)") from None
-    fn = getattr(mod, "ingest_scans", None)
+    fn = _find_ingest_scans()
     if fn is None:
-        raise Skipped("app.ingestion.inspections has no ingest_scans(conn, directory)")
+        raise Skipped("no ingest_scans() in " + " or ".join(INSPECTION_MODULES))
+    s = get_settings()
+    if fn.__module__ == "app.agent.inspections":
+        from app.agent.llm import check_ollama
+
+        status = check_ollama([s.vision_model])
+        if not status.ready:
+            raise Skipped(f"Ollama not ready ({status.error or 'missing ' + str(status.missing)})")
     from app.db import connect
 
-    conn = connect(get_settings().db_path)
+    conn = connect(s.db_path)
     try:
-        result = fn(conn, get_settings().data_dir / "scans")
+        result = fn(conn, s.data_dir / "scans")
     finally:
         conn.close()
-    return str(result)
+    return _summarise_scans(result)
 
 
 def step_verify(args: argparse.Namespace) -> str:

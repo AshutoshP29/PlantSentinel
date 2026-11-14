@@ -21,10 +21,9 @@ import {
 } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { isBlockedTool } from '../api/adapters'
 import { api } from '../api/client'
-import type { AgentSource, AgentStatus, AgentStep, AgentStreamEvent, AgentWorkOrder, ChatTurn } from '../api/types'
-import { SourcePassage } from '../components/SourceDocs'
+import type { AgentEvent, AgentStatus, AgentStep, ChatTurn, Citation, DocumentItem } from '../api/types'
+import { CitationPaper } from '../components/SourceDocs'
 import { Button, Card, Chip, EmptyState, Modal, PageHeader } from '../components/ui'
 import { useApi } from '../hooks/useApi'
 import { formatTime } from '../lib/format'
@@ -37,15 +36,12 @@ interface Message {
   text: string
   at: string
   pending?: boolean
-  status?: string
-  sources?: Record<string, AgentSource>
-  refs?: string[]
-  unknownRefs?: string[]
-  workOrders?: AgentWorkOrder[]
+  citations?: Citation[]
+  canDraft?: boolean
   error?: string
   elapsed?: number
-  tools?: number
   tag?: string | null
+  doc?: DocumentItem
 }
 
 const SUGGESTIONS = [
@@ -55,6 +51,7 @@ const SUGGESTIONS = [
 ]
 
 const TAG_RE = /\b([PCEM])-?(\d{3})\b/i
+const KIND_LABEL: Record<Citation['kind'], string> = { manual: 'Manual', inspection: 'Inspection', work_orders: 'Work order' }
 
 let msgId = 1
 
@@ -68,10 +65,12 @@ export default function Agent() {
   const [running, setRunning] = useState(false)
   const [input, setInput] = useState('')
   const [contextTag, setContextTag] = useState<string | null>(params.get('tag'))
-  const [selected, setSelected] = useState<AgentSource | null>(null)
+  const [selected, setSelected] = useState<{ c: Citation; tag: string | null } | null>(null)
   const [sourceOpen, setSourceOpen] = useState(false)
   const cancelRef = useRef<(() => void) | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
+
+  const patchMsg = (id: number, fn: (m: Message) => Message) => setMessages((list) => list.map((x) => (x.id === id ? fn(x) : x)))
 
   const ask = (question: string) => {
     const q = question.trim()
@@ -81,9 +80,7 @@ export default function Agent() {
     if (tag) setContextTag(tag)
 
     // Earlier finished turns go along as history (the backend keeps the last 20)
-    const history: ChatTurn[] = messages
-      .filter((x) => !x.pending && x.text)
-      .map((x) => ({ role: x.role, content: x.text }))
+    const history: ChatTurn[] = messages.filter((x) => !x.pending && x.text).map((x) => ({ role: x.role, content: x.text }))
 
     const now = new Date().toISOString()
     // Ids are taken here, not inside the updater (StrictMode runs updaters twice).
@@ -92,70 +89,48 @@ export default function Agent() {
     setMessages((list) => [
       ...list,
       { id: userId, role: 'user', text: q, at: now },
-      { id: answerId, role: 'assistant', text: '', at: now, pending: true, status: 'Starting…', tag, sources: {}, workOrders: [] },
+      { id: answerId, role: 'assistant', text: '', at: now, pending: true, tag },
     ])
     setSteps([])
     setSelected(null)
     setInput('')
     setRunning(true)
 
-    const patch = (fn: (m: Message) => Message) => setMessages((list) => list.map((x) => (x.id === answerId ? fn(x) : x)))
-    // Kept outside React state so "done" can pick the first cited source without side effects
-    const runSources: Record<string, AgentSource> = {}
-    let runRefs: string[] = []
+    const t0 = performance.now()
+    let generated = false // the agent ran generate_work_order itself
 
-    cancelRef.current = api.askAgent(q, tag, history, (e: AgentStreamEvent) => {
-      if (e.type === 'sources') for (const s of e.data.sources) runSources[s.ref] = s
-      if (e.type === 'answer') runRefs = e.data.cited_refs
+    cancelRef.current = api.askAgent(q, tag, history, (e: AgentEvent) => {
       switch (e.type) {
-        case 'run_started':
+        case 'step':
+          if (e.step.tool === 'generate_work_order' && e.step.status === 'done') generated = true
+          setSteps((list) => {
+            const i = list.findIndex((s) => s.id === e.step.id)
+            return i === -1 ? [...list, e.step] : list.map((s, j) => (j === i ? { ...s, ...e.step } : s))
+          })
           break
-        case 'status':
-          patch((x) => ({ ...x, status: e.data.message }))
+        case 'token':
+          patchMsg(answerId, (x) => ({ ...x, text: x.text + e.text }))
           break
-        case 'tool_started':
-          setSteps((list) => [
-            ...list,
-            { id: e.data.call_id, tool: e.data.tool, args: e.data.args, summary: argsLine(e.data.args), status: 'running', started_at: Date.now() },
-          ])
-          break
-        case 'tool_completed':
-          setSteps((list) =>
-            list.map((s) =>
-              s.id === e.data.call_id
-                ? {
-                    ...s,
-                    summary: e.data.summary || s.summary,
-                    status: isBlockedTool(e.data.status, e.data.summary) ? 'blocked' : e.data.status === 'success' ? 'done' : 'error',
-                    duration_ms: Date.now() - s.started_at,
-                  }
-                : s,
-            ),
-          )
-          break
-        case 'sources':
-          patch((x) => ({ ...x, sources: { ...x.sources, ...Object.fromEntries(e.data.sources.map((s) => [s.ref, s])) } }))
-          break
-        case 'work_order':
-          patch((x) => ({ ...x, workOrders: mergeWos(x.workOrders, [e.data]) }))
-          break
-        case 'answer':
-          patch((x) => ({
-            ...x,
-            text: e.data.text,
-            refs: e.data.cited_refs,
-            unknownRefs: e.data.unknown_refs,
-            workOrders: mergeWos(x.workOrders, e.data.work_orders),
-          }))
-          break
+        case 'blocked':
+          break // the client raises the red alert
         case 'error':
-          patch((x) => ({ ...x, error: e.data.message }))
+          patchMsg(answerId, (x) => ({ ...x, error: e.message }))
           break
-        case 'done':
-          patch((x) => ({ ...x, pending: false, elapsed: e.data.elapsed_s, at: new Date().toISOString() }))
-          if (runRefs[0] && runSources[runRefs[0]]) setSelected(runSources[runRefs[0]])
+        case 'done': {
+          const elapsed = (performance.now() - t0) / 1000
+          patchMsg(answerId, (x) => ({ ...x, pending: false, citations: e.citations, canDraft: e.can_draft_work_order, elapsed, at: new Date().toISOString() }))
+          if (e.citations[0]) setSelected({ c: e.citations[0], tag })
           setRunning(false)
+          // If the agent drafted a work order, show its download (it's saved in Documents)
+          if (generated && tag) {
+            void api
+              .getDocuments()
+              .then((docs) => docs.find((d) => d.kind === 'work_order' && d.tag === tag))
+              .then((doc) => doc && patchMsg(answerId, (x) => ({ ...x, doc })))
+              .catch(() => {})
+          }
           break
+        }
       }
     })
   }
@@ -192,7 +167,7 @@ export default function Agent() {
     <>
       <PageHeader
         title="Ask the agent"
-        description="Root-cause answers with citations from your own history and manuals."
+        description="Root-cause answers with citations from your own history, inspections and manuals."
         actions={<ReadyChip status={status.data} loading={status.loading} onRefresh={() => setStatusKey((k) => k + 1)} />}
       />
       {status.data && !status.data.ready && <ReadinessBanner status={status.data} onRefresh={() => setStatusKey((k) => k + 1)} />}
@@ -223,7 +198,7 @@ export default function Agent() {
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
             {messages.length === 0 && (
               <EmptyState icon={Sparkles} title="Ask about an asset or a failure">
-                The agent reads your work orders and manuals, and cites every source.
+                The agent reads your work orders, inspection reports and manuals, and cites every source.
               </EmptyState>
             )}
             {messages.map((m) =>
@@ -233,10 +208,9 @@ export default function Agent() {
                 <AnswerCard
                   key={m.id}
                   m={m}
-                  activeRef={selected?.ref ?? null}
-                  onCite={(s) => setSelected(s)}
-                  onDraft={(tag) => ask(`Generate a work order for ${tag} for the issue above`)}
-                  busy={running}
+                  activeId={selected?.c.id ?? null}
+                  onCite={(c) => setSelected({ c, tag: m.tag ?? null })}
+                  onDoc={(doc) => patchMsg(m.id, (x) => ({ ...x, doc, canDraft: false }))}
                 />
               ),
             )}
@@ -311,15 +285,22 @@ export default function Agent() {
 
           <Card
             icon={FileText}
-            title={selected ? `[${selected.ref}] ${shortTitle(selected.title)}` : 'Source preview'}
-            subtitle={selected ? `Page ${selected.page}${selected.section ? ` · ${selected.section}` : ''}` : 'Click a citation to see where an answer came from'}
+            title={selected ? `[${selected.c.id}] ${KIND_LABEL[selected.c.kind]}` : 'Source preview'}
+            subtitle={selected ? selected.c.title : 'Click a citation to see where an answer came from'}
           >
             {selected ? (
               <div className="space-y-3">
-                <SourcePassage source={selected} />
-                <Button size="sm" variant="soft" icon={ExternalLink} onClick={() => setSourceOpen(true)}>
-                  Open source
-                </Button>
+                <CitationPaper citation={selected.c} />
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="soft" icon={ExternalLink} onClick={() => setSourceOpen(true)}>
+                    Open source
+                  </Button>
+                  {selected.c.kind !== 'manual' && selected.tag && (
+                    <Link to={`/assets/${selected.tag}`} className="inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium text-accent-ink hover:bg-accent-soft">
+                      Open {selected.tag}
+                    </Link>
+                  )}
+                </div>
               </div>
             ) : (
               <p className="py-4 text-sm text-muted">No source selected.</p>
@@ -329,34 +310,12 @@ export default function Agent() {
       </div>
 
       {selected && (
-        <Modal open={sourceOpen} onClose={() => setSourceOpen(false)} title={`[${selected.ref}] ${selected.title}`}>
-          <SourcePassage source={selected} />
-          <p className="mt-3 text-xs text-muted">
-            Retrieved from {selected.source}, page {selected.page}
-            {selected.section ? `, ${selected.section}` : ''} · relevance {selected.score.toFixed(2)}
-          </p>
+        <Modal open={sourceOpen} onClose={() => setSourceOpen(false)} title={`[${selected.c.id}] ${selected.c.title}`}>
+          <CitationPaper citation={selected.c} />
         </Modal>
       )}
     </>
   )
-}
-
-// ---------- helpers ----------
-
-function mergeWos(a: AgentWorkOrder[] = [], b: AgentWorkOrder[] = []): AgentWorkOrder[] {
-  const out = [...a]
-  for (const w of b) if (!out.some((x) => x.work_order_id === w.work_order_id)) out.push(w)
-  return out
-}
-
-function argsLine(args: Record<string, unknown>): string {
-  const parts = Object.entries(args).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(',') : String(v)}`)
-  return parts.length ? parts.join(' · ') : 'Running…'
-}
-
-/** "CP-200 Series Centrifugal Process Pump - Operation and Maintenance Manual" → "CP-200 Series Centrifugal Process Pump" */
-function shortTitle(t: string): string {
-  return t.split(' - ')[0].split(' (')[0]
 }
 
 // ---------- readiness ----------
@@ -365,7 +324,7 @@ function problems(s: AgentStatus): string[] {
   const out: string[] = []
   if (!s.ollama.reachable) out.push(`Ollama isn't reachable at ${s.ollama.host}${s.ollama.error ? ` (${s.ollama.error})` : ''}.`)
   if (s.ollama.missing_models.length) out.push(`Missing models: ${s.ollama.missing_models.join(', ')}. Pull them before the demo.`)
-  if (s.manual_chunks === 0) out.push('No manual passages are indexed, so answers will have no citations. Run the manual ingest.')
+  if (s.manual_chunks === 0) out.push('No manual passages are indexed, so answers will have no manual citations. Run the demo seeding.')
   if (s.manual_store_error) out.push(`Manual store: ${s.manual_store_error}`)
   return out.length ? out : ['The agent reports it is not ready.']
 }
@@ -427,21 +386,20 @@ function UserBubble({ m }: { m: Message }) {
 
 function AnswerCard({
   m,
-  activeRef,
+  activeId,
   onCite,
-  onDraft,
-  busy,
+  onDoc,
 }: {
   m: Message
-  activeRef: string | null
-  onCite: (s: AgentSource) => void
-  onDraft: (tag: string) => void
-  busy: boolean
+  activeId: number | null
+  onCite: (c: Citation) => void
+  onDoc: (doc: DocumentItem) => void
 }) {
   const { deny } = useRole()
   const toast = useToast()
-  const sources = m.sources ?? {}
-  const cited = (m.refs ?? []).filter((r) => sources[r])
+  const [drafting, setDrafting] = useState(false)
+  const cites = m.citations ?? []
+  const byId = new Map(cites.map((c) => [c.id, c]))
 
   const copy = async () => {
     try {
@@ -452,19 +410,33 @@ function AnswerCard({
     }
   }
 
-  const renderRef = (ref: string) => {
-    const s = sources[ref]
+  const draft = async () => {
+    if (!m.tag) return
+    setDrafting(true)
+    try {
+      const doc = await api.createWorkOrder(m.tag)
+      onDoc(doc)
+      toast({ title: `${doc.work_order?.wo_number ?? doc.file_name} drafted`, body: 'Saved in Documents.', tone: 'good' })
+    } catch (err) {
+      toast({ title: 'Could not draft the work order', body: err instanceof Error ? err.message : String(err), tone: 'critical' })
+    } finally {
+      setDrafting(false)
+    }
+  }
+
+  const renderRef = (n: number) => {
+    const c = byId.get(n)
     return (
       <button
         type="button"
-        disabled={!s}
-        title={s ? `${shortTitle(s.title)}, p. ${s.page}` : 'Not in the retrieved sources'}
-        onClick={() => s && onCite(s)}
+        disabled={!c}
+        title={c ? c.title : m.pending ? 'Sources load when the answer finishes' : 'Not in the cited sources'}
+        onClick={() => c && onCite(c)}
         className={`mx-0.5 rounded px-1 align-[1px] text-xs font-semibold ${
-          !s ? 'bg-surface-2 text-muted line-through' : activeRef === ref ? 'bg-accent text-white' : 'bg-accent-soft text-accent-ink'
+          !c ? 'bg-surface-2 text-muted' : activeId === n ? 'bg-accent text-white' : 'bg-accent-soft text-accent-ink'
         }`}
       >
-        [{ref}]
+        [{n}]
       </button>
     )
   }
@@ -476,48 +448,39 @@ function AnswerCard({
       </span>
       <div className="min-w-0 flex-1 rounded-2xl rounded-tl-md border border-line bg-surface px-5 py-4 shadow-sm">
         {m.text ? (
-          <RichText text={m.text} renderRef={renderRef} />
+          <RichText text={m.text} streaming={m.pending} renderRef={renderRef} />
         ) : m.pending ? (
           <div className="flex items-center gap-2 text-sm text-ink-2">
-            <Loader2 className="size-4 animate-spin" aria-hidden /> {m.status ?? 'Working…'}
+            <Loader2 className="size-4 animate-spin" aria-hidden /> Working through the tools…
           </div>
         ) : null}
         {m.error && <p className="mt-2 text-sm text-critical-ink">{m.error}</p>}
 
-        {cited.length > 0 && (
+        {cites.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
-            {cited.map((r) => {
-              const s = sources[r]
-              return (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => onCite(s)}
-                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-xs font-medium ${
-                    activeRef === r ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line bg-surface text-ink-2 hover:bg-surface-2'
-                  }`}
-                >
-                  <FileText className="size-3.5 shrink-0" aria-hidden />[{r}] p. {s.page}
-                  {s.section ? ` · ${s.section}` : ''}
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        {(m.workOrders ?? []).length > 0 && (
-          <div className="mt-4 space-y-2">
-            {m.workOrders!.map((w) => (
-              <WorkOrderRow key={w.work_order_id} wo={w} />
+            {cites.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onCite(c)}
+                title={c.title}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-xs font-medium ${
+                  activeId === c.id ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line bg-surface text-ink-2 hover:bg-surface-2'
+                }`}
+              >
+                <FileText className="size-3.5 shrink-0" aria-hidden />[{c.id}] {c.label}
+              </button>
             ))}
           </div>
         )}
 
+        {m.doc && <DocumentRow doc={m.doc} />}
+
         {!m.pending && m.text && (
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            {m.tag && !(m.workOrders ?? []).length && (
-              <Button variant="primary" icon={FilePlus2} onClick={() => onDraft(m.tag!)} disabled={busy} disabledReason={deny('draft_work_order')}>
-                Draft work order
+            {m.canDraft && m.tag && !m.doc && (
+              <Button variant="primary" icon={drafting ? Loader2 : FilePlus2} onClick={draft} disabled={drafting} disabledReason={deny('draft_work_order')}>
+                {drafting ? 'Drafting…' : 'Draft work order'}
               </Button>
             )}
             <Button icon={Copy} onClick={copy}>
@@ -534,56 +497,50 @@ function AnswerCard({
   )
 }
 
-function WorkOrderRow({ wo }: { wo: AgentWorkOrder }) {
+function DocumentRow({ doc }: { doc: DocumentItem }) {
   const toast = useToast()
-  const url = api.agentDownloadUrl(wo.download_url)
+  const url = api.downloadUrl(doc)
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-accent/30 bg-accent-soft/50 px-3 py-2.5">
+    <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-accent/30 bg-accent-soft/50 px-3 py-2.5">
       <span className="flex size-9 items-center justify-center rounded-lg bg-[#2b6cb0] text-white" aria-hidden>
         <FileText className="size-5" />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold text-ink">{wo.file}</div>
+        <div className="truncate text-sm font-semibold text-ink">{doc.file_name}</div>
         <div className="text-xs text-ink-2">
-          {wo.work_order_id} · {wo.tag} · Priority {wo.priority}
+          {doc.work_order?.wo_number ?? doc.id} · {doc.tag ?? 'All assets'}
+          {doc.work_order?.priority ? ` · Priority ${doc.work_order.priority}` : ''}
         </div>
       </div>
       {url ? (
-        <a
-          href={url}
-          download={wo.file}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-accent px-3 text-xs font-medium text-white hover:bg-accent-hover"
-        >
+        <a href={url} download={doc.file_name} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-accent px-3 text-xs font-medium text-white hover:bg-accent-hover">
           <Download className="size-3.5" aria-hidden /> Download .docx
         </a>
       ) : (
-        <>
-          <Button size="sm" icon={Download} onClick={() => toast({ title: 'Demo mode', body: 'The backend writes the real .docx. Connect it to download.' })}>
-            Download .docx
-          </Button>
-          <Link to="/documents" className="text-xs font-medium text-accent-ink hover:underline">
-            Open in Documents
-          </Link>
-        </>
+        <Button size="sm" icon={Download} onClick={() => toast({ title: 'Demo mode', body: 'The backend writes the real .docx. Connect it to download.' })}>
+          Download .docx
+        </Button>
       )}
+      <Link to={`/documents?doc=${encodeURIComponent(doc.id)}`} className="text-xs font-medium text-accent-ink hover:underline">
+        Open in Documents
+      </Link>
     </div>
   )
 }
 
-/** Markdown-lite: ## / ### headings, numbered and bulleted lists, **bold**, [S1] citation refs. */
-function RichText({ text, renderRef }: { text: string; renderRef: (ref: string) => ReactNode }) {
+/** Markdown-lite: ## / ### headings, numbered and bulleted lists, **bold**, [n] citation refs. */
+function RichText({ text, streaming, renderRef }: { text: string; streaming?: boolean; renderRef: (n: number) => ReactNode }) {
   const lines = text.split('\n').filter((l) => l.trim() !== '')
   const inline = (s: string) =>
-    s.split(/(\[S\d+(?:\s*,\s*S\d+)*\]|\*\*[^*]+\*\*)/).map((part, i) => {
-      if (/^\[S\d+/.test(part)) {
-        return <Fragment key={i}>{(part.match(/S\d+/g) ?? []).map((r) => <Fragment key={r}>{renderRef(r)}</Fragment>)}</Fragment>
-      }
+    s.split(/(\[\d+\]|\*\*[^*]+\*\*)/).map((part, i) => {
+      const ref = part.match(/^\[(\d+)\]$/)
+      if (ref) return <Fragment key={i}>{renderRef(Number(ref[1]))}</Fragment>
       if (/^\*\*.+\*\*$/.test(part)) return <strong key={i}>{part.slice(2, -2)}</strong>
       return <Fragment key={i}>{part}</Fragment>
     })
 
   return (
-    <div className="space-y-2 text-[15px] leading-relaxed text-ink">
+    <div className={`space-y-2 text-[15px] leading-relaxed text-ink ${streaming ? 'stream-caret' : ''}`}>
       {lines.map((l, i) => {
         const h = l.match(/^(#{2,3})\s+(.*)$/)
         if (h)
@@ -613,7 +570,7 @@ function StepRow({ step }: { step: AgentStep }) {
 
   return (
     <li
-      title={argsLine(step.args)}
+      title={step.summary}
       className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 ${
         step.status === 'blocked' ? 'border-critical/40 bg-critical-soft' : 'border-line bg-surface-2/50'
       }`}

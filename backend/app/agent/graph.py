@@ -38,8 +38,16 @@ from langchain_core.messages import (
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 
+from app.agent import data, inspections
 from app.agent.prompts import FINALIZE_PROMPT, SYSTEM_PROMPT
-from app.agent.tools import TOOL_SPECS, AgentContext, AllowListGuard, build_tools, execute
+from app.agent.tools import (
+    TOOL_SPECS,
+    AgentContext,
+    AllowListGuard,
+    build_tools,
+    emit_audit,
+    execute,
+)
 from app.config import get_settings
 
 log = logging.getLogger(__name__)
@@ -59,7 +67,7 @@ EVENT_TYPES = (
 )
 
 TOOL_CALL_TAG = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL)
-REF_TOKEN = r"S\d+|INSP-[A-Z0-9]+-[A-Za-z0-9]+(?:-\d+)?|WO-[A-Z0-9-]*\d"
+REF_TOKEN = r"S\d+|INSP-[A-Z0-9]+(?:-[A-Za-z0-9]+)*|WO-[A-Z0-9-]*\d"
 BRACKET_RE = re.compile(r"\[([^\[\]]{1,200})\]")
 STREAM_NODES = ("agent", "finalize")
 
@@ -102,6 +110,26 @@ def _call_key(name: str, args: dict) -> str:
     return f"{name}:{json.dumps(args, sort_keys=True, default=str)}"
 
 
+def _audit_entry(ctx: AgentContext, tool: str, args: dict, artifact: dict) -> dict:
+    """One audit_log-shaped row per tool call: status allowed / blocked / error."""
+    status = {"success": "allowed", "blocked": "blocked"}.get(artifact["status"], "error")
+    output = artifact["summary"]
+    if status == "blocked":
+        output = (
+            f"{output}; target={artifact.get('target', '')}; source={artifact.get('source', '')}"
+        )
+    return {
+        "ts": datetime.now().isoformat(timespec="seconds"),
+        "user": ctx.user,
+        "role": ctx.role,
+        "action": "tool_call",
+        "tool": tool,
+        "input": json.dumps(args, default=str),
+        "output": output,
+        "status": status,
+    }
+
+
 def _blocked_source(ctx: AgentContext, tool: str, target: str) -> str:
     """Name the retrieved document that carried the instruction, if we can tell."""
     needles = [n.lower() for n in (target, tool) if n]
@@ -115,11 +143,96 @@ def _blocked_source(ctx: AgentContext, tool: str, target: str) -> str:
 # --------------------------------------------------------------------------- graph
 
 
+DIAGNOSIS_RE = re.compile(
+    r"\b(why|fail\w*|keeps?|root[- ]cause|investigat\w*|diagnos\w*|what should we do|"
+    r"recommend\w*|problem|issue|overheat\w*|leak\w*|broke\w*|trip\w*)\b",
+    re.IGNORECASE,
+)
+
+
+class Checklist:
+    """Evidence a diagnosis answer must rest on, enforced for small models.
+
+    For a "why does <tag> keep failing / what should we do" question the agent must look at
+    the history, the latest inspection (when one exists) and the manuals before answering.
+    If the model tries to answer early, its text is not streamed and the missing calls are
+    made for it instead (history + inspection first, then a manual search built from what
+    they found).
+    """
+
+    def __init__(self, ctx: AgentContext, question: str, tag: str | None = None) -> None:
+        self.ctx = ctx
+        self.tag = self._tag(question, tag)
+        self.required: list[str] = []
+        self.fixed_args: dict[str, dict] = {}
+        self.done: set[str] = set()
+        if self.tag and DIAGNOSIS_RE.search(question):
+            self.required = ["get_asset_history", "search_manuals"]
+            if inspections.latest_inspection(ctx.conn, self.tag):
+                self.required.insert(1, "read_inspection")
+
+    def _tag(self, question: str, tag: str | None) -> str | None:
+        for raw in (tag, question):
+            if not raw:
+                continue
+            try:
+                t = data.normalise_tag(raw)
+            except ValueError:
+                continue
+            if data.get_asset(self.ctx.conn, t):
+                return t
+        return None
+
+    @classmethod
+    def custom(cls, ctx: AgentContext, calls: dict[str, dict]) -> Checklist:
+        """A checklist with fixed required calls, e.g. {"search_manuals": {"query": ...}}."""
+        c = cls(ctx, "")
+        c.required, c.fixed_args = list(calls), calls
+        return c
+
+    def mark(self, tool: str) -> None:
+        self.done.add(tool)
+
+    def missing(self) -> list[str]:
+        return [t for t in self.required if t not in self.done]
+
+    def _search_query(self) -> str:
+        parts = [str((data.get_asset(self.ctx.conn, self.tag) or {}).get("type", ""))]
+        stats = self.ctx.patterns.get(self.tag or "") or {}
+        modes = stats.get("by_failure_mode") or {}
+        recent = [
+            m
+            for m, s in modes.items()
+            if s.get("events_in_window") and m not in ("Unclassified", "Routine maintenance")
+        ]
+        parts += recent[:1] or (stats.get("keyword_filter") or ["repeated failure"])
+        insp = next((i for i in self.ctx.inspections.values() if i["tag"] == self.tag), None)
+        if insp:
+            parts += [f["result"] for f in insp["findings"] if f["flagged"]][:2]
+        return re.sub(r"\s+", " ", " ".join(p for p in parts if p))[:290]
+
+    def next_calls(self) -> list[dict]:
+        """Missing calls to make now: history/inspection first, the manual search after."""
+        missing = self.missing()
+        first = [t for t in missing if t != "search_manuals"]
+        batch = first or missing
+        args = {
+            "get_asset_history": {"tag": self.tag},
+            "read_inspection": {"tag": self.tag},
+            "search_manuals": {"query": self._search_query()},
+            **self.fixed_args,
+        }
+        return [
+            {"name": t, "args": args[t], "id": f"auto_{t}_{uuid.uuid4().hex[:6]}"} for t in batch
+        ]
+
+
 def build_graph(
     ctx: AgentContext,
     llm: BaseChatModel,
     max_tool_calls: int | None = None,
     tool_names: list[str] | None = None,
+    checklist: Checklist | None = None,
 ):
     """Compile the agent graph. `tool_names` is the allow-list (default: all seven tools)."""
     limit = max_tool_calls or get_settings().agent_max_tool_calls
@@ -137,6 +250,13 @@ def build_graph(
 
     def agent(state: AgentState) -> dict:
         resp = recover_tool_calls(model.invoke([system, *state["messages"]]))
+        calls_left = limit - state.get("tool_calls", 0)
+        if checklist and not resp.tool_calls and checklist.missing() and calls_left > 0:
+            # Answered before looking at the evidence: make the missing calls instead.
+            forced = [c for c in checklist.next_calls() if c["name"] in specs][:calls_left]
+            if forced:
+                log.info("checklist: model answered early; calling %s", [c["name"] for c in forced])
+                resp = AIMessage(content="", tool_calls=forced)
         return {"messages": [resp]}
 
     def tools(state: AgentState) -> dict:
@@ -173,20 +293,11 @@ def build_graph(
                     content, artifact = execute(ctx, name, *specs[name], args)
                     if artifact["status"] == "success":
                         seen[key] = content
-                guard.record(
-                    {
-                        "ts": datetime.now().isoformat(timespec="seconds"),
-                        "user": ctx.user,
-                        "role": ctx.role,
-                        "action": "tool_call",
-                        "tool": name,
-                        "input": json.dumps(args, default=str),
-                        "output": artifact["summary"],
-                        "status": {"success": "allowed"}.get(
-                            artifact["status"], artifact["status"]
-                        ),
-                    }
-                )
+            if checklist and artifact["status"] != "blocked":
+                checklist.mark(name)
+            entry = _audit_entry(ctx, name, args, artifact)
+            guard.record(entry)
+            emit_audit(entry, ctx.audit)
             out.append(
                 ToolMessage(
                     content=content,
@@ -248,14 +359,17 @@ def history_messages(history: list[dict] | None) -> list[AnyMessage]:
 class _DeltaFilter:
     """Turns LLM token chunks into answer deltas, holding back tool-call-looking text."""
 
-    def __init__(self) -> None:
+    def __init__(self, checklist: Checklist | None = None) -> None:
         self.buf: dict[str, str] = {}
         self.sent: dict[str, int] = {}
         self.tool_turns: set[str] = set()
+        self.checklist = checklist
 
     def feed(self, chunk: BaseMessage, meta: dict) -> str:
         if meta.get("langgraph_node") not in STREAM_NODES or not isinstance(chunk.content, str):
             return ""
+        if meta.get("langgraph_node") == "agent" and self.checklist and self.checklist.missing():
+            return ""  # an early answer will be replaced by the missing tool calls
         key = f"{meta.get('langgraph_checkpoint_ns', '')}|{chunk.id}"
         if getattr(chunk, "tool_call_chunks", None) or getattr(chunk, "tool_calls", None):
             self.tool_turns.add(key)
@@ -278,8 +392,14 @@ async def stream_agent(
     history: list[dict] | None = None,
     max_tool_calls: int | None = None,
     tool_names: list[str] | None = None,
+    tag: str | None = None,
+    enforce_checklist: bool = True,
+    checklist: Checklist | None = None,
 ) -> AsyncIterator[dict]:
-    """Run the agent and yield UI events. Never raises: failures become an `error` event."""
+    """Run the agent and yield UI events. Never raises: failures become an `error` event.
+
+    `tag` is the asset the user is looking at (used by the diagnosis checklist).
+    """
     run_id = uuid.uuid4().hex[:12]
     started = time.perf_counter()
     limit = max_tool_calls or get_settings().agent_max_tool_calls
@@ -287,9 +407,11 @@ async def stream_agent(
     yield _event("status", stage="planning", message="Planning the investigation")
     calls_used, sent_sources, sent_docs, answered = 0, 0, 0, False
     names: dict[str, str] = {}
-    deltas = _DeltaFilter()
     try:
-        graph = build_graph(ctx, llm, limit, tool_names)
+        if checklist is None and enforce_checklist:
+            checklist = Checklist(ctx, question, tag)
+        deltas = _DeltaFilter(checklist)
+        graph = build_graph(ctx, llm, limit, tool_names, checklist)
         state = {"messages": [*history_messages(history), HumanMessage(question)], "tool_calls": 0}
         async for mode, payload in graph.astream(
             state,

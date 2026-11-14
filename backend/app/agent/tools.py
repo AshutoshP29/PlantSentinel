@@ -110,6 +110,55 @@ def _find_target(args: Any) -> str:
     return re.sub(r"\s+", "", m.group(0)) if m else ""
 
 
+# --------------------------------------------------------------------------- audit hook
+#
+# Every tool call produces one audit entry shaped like an audit_log row:
+#   {ts, user, role, action: "tool_call", tool, input, output, status}
+# with status "allowed", "blocked" or "error". Entries go to the run's `AgentContext.audit`
+# callback (per request: knows the user) and to every sink registered process-wide.
+
+AuditSink = Callable[[dict], None]
+_AUDIT_SINKS: list[AuditSink] = []
+
+
+def register_audit_sink(sink: AuditSink) -> Callable[[], None]:
+    """Receive every tool-call audit entry from now on. Returns a function that unregisters."""
+    _AUDIT_SINKS.append(sink)
+    return lambda: _AUDIT_SINKS.remove(sink) if sink in _AUDIT_SINKS else None
+
+
+def emit_audit(entry: dict, ctx_sink: AuditSink | None = None) -> None:
+    """Deliver an entry to the per-run callback and all sinks. A failing sink never breaks
+    the agent run (the failure is logged)."""
+    for sink in ([ctx_sink] if ctx_sink else []) + list(_AUDIT_SINKS):
+        try:
+            sink(entry)
+        except Exception:
+            log.exception("audit sink failed for tool %s", entry.get("tool"))
+
+
+def sqlite_audit_sink(db_path: Path | str) -> AuditSink:
+    """Ready-made sink that inserts each entry into the audit_log table (app.db schema)."""
+    from app.db import connect
+
+    def write(entry: dict) -> None:
+        conn = connect(db_path)
+        try:
+            conn.execute(
+                "INSERT INTO audit_log(ts, user, role, action, tool, input, output, status) "
+                "VALUES (:ts, :user, :role, :action, :tool, :input, :output, :status)",
+                {k: entry.get(k) for k in AUDIT_FIELDS},
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    return write
+
+
+AUDIT_FIELDS = ("ts", "user", "role", "action", "tool", "input", "output", "status")
+
+
 # --------------------------------------------------------------------------- context
 
 
@@ -120,6 +169,7 @@ class AgentContext:
     llm_factory: Callable[..., BaseChatModel]
     outputs_dir: Path
     guard: ToolGuard | None = None  # default: AllowListGuard over the run's tools
+    audit: AuditSink | None = None  # per-run audit callback (see register_audit_sink)
     user: str = "agent"
     role: str = ""
     citations: dict[str, Citation] = field(default_factory=dict)  # chunk_id -> passage

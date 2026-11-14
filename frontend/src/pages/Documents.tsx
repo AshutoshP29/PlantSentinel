@@ -290,7 +290,7 @@ function WorkOrderPreview({ doc }: { doc: DocumentItem }) {
                     className="w-full rounded-lg border border-line bg-surface-2/50 px-2.5 py-1.5 text-sm text-ink outline-none focus:border-accent"
                   />
                 ) : (
-                  String(wo[f.key]) || <span className="text-muted">—</span>
+                  <span className="whitespace-pre-line">{String(wo[f.key] ?? '') || <span className="text-muted">—</span>}</span>
                 )}
               </dd>
             </div>
@@ -320,7 +320,7 @@ function WorkOrderPreview({ doc }: { doc: DocumentItem }) {
             <>
               {wo.status === 'draft' && (
                 <>
-                  <Button variant="primary" icon={Pencil} onClick={() => setEditing(true)} disabledReason={deny('edit_work_order')}>
+                  <Button variant="primary" icon={Pencil} onClick={() => setEditing(true)} disabledReason={deny('edit_work_order') ?? (api.documentsEditable() ? null : 'Editing is not supported by the backend yet')}>
                     Edit draft
                   </Button>
                   <Button
@@ -328,7 +328,7 @@ function WorkOrderPreview({ doc }: { doc: DocumentItem }) {
                     icon={CheckCircle2}
                     onClick={approve}
                     disabled={approving}
-                    disabledReason={deny('approve_work_order')}
+                    disabledReason={deny('approve_work_order') ?? (api.documentsEditable() ? null : 'Approving is not supported by the backend yet')}
                   >
                     {approving ? 'Approving…' : 'Approve'}
                   </Button>
@@ -406,7 +406,7 @@ function NewWorkOrderModal({
 
   return (
     <Modal open={open} onClose={onClose} title="New work order">
-      <p className="mb-3 text-sm text-ink-2">The draft is pre-filled from the asset's history, latest inspection and manuals.</p>
+      <p className="mb-3 text-sm text-ink-2">The draft is pre-filled from the asset's history, latest inspection and manuals. Writing it takes the local model a little while.</p>
       <Select
         label="Asset"
         value={tag}
