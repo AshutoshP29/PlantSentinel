@@ -96,10 +96,27 @@ def test_failure_patterns_find_the_planted_p101_seal_story(tmp_path) -> None:
 
 
 def test_bad_actors_fallback_is_labelled_and_ranks_tag(tmp_path) -> None:
+    # seeded_conn has no clustering applied, so the scorer has nothing to rank -> fallback
     out, _ = call(make_context(tmp_path), "get_bad_actors", tag="P-101", top_n=3)
     assert "preliminary" in out["method"] and "not a bad-actor score" in out["method"]
     assert len(out["top"]) == 3
     assert out["asset"]["tag"] == "P-101" and out["asset"]["rank"] >= 1
+
+
+def test_bad_actors_uses_real_scorer_after_clustering(tmp_path, monkeypatch) -> None:
+    from app import config
+    from app.analytics.cluster import apply_to_db, load_fallback
+
+    monkeypatch.setenv("ANALYSIS_AS_OF", "2026-11-14")  # synthetic data ends here
+    config.get_settings.cache_clear()
+    ctx = make_context(tmp_path)
+    apply_to_db(ctx.conn, load_fallback())  # the committed demo clustering
+    out, _ = call(ctx, "get_bad_actors", tag="P-101", top_n=3)
+    assert out["method"].startswith("bad-actor model")
+    assert [r["tag"] for r in out["top"]] == ["P-101", "C-203", "E-302"]
+    assert out["asset"]["rank"] == 1
+    assert out["asset"]["failure_mode"] == "Mechanical Seal Leakage"
+    assert out["asset"]["count_180d"] == 4
 
 
 def test_bad_actors_uses_analytics_model_when_present(tmp_path, monkeypatch) -> None:

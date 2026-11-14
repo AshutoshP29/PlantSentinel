@@ -1,6 +1,6 @@
 """Minimal client for the local Ollama server (embeddings + JSON chat).
 
-All model names come from app.config. Tests replace these functions with fakes.
+All model names and tuning come from app.config. Tests replace these functions with fakes.
 """
 
 import json
@@ -15,7 +15,11 @@ def embed(texts: list[str], model: str | None = None) -> list[list[float]]:
     settings = get_settings()
     r = httpx.post(
         f"{settings.ollama_host}/api/embed",
-        json={"model": model or settings.embed_model, "input": texts},
+        json={
+            "model": model or settings.embed_model,
+            "input": texts,
+            "keep_alive": settings.llm_keep_alive_s,
+        },
         timeout=120,
     )
     r.raise_for_status()
@@ -34,7 +38,8 @@ def chat_json(prompt: str, system: str | None = None, model: str | None = None) 
             "messages": messages,
             "format": "json",
             "stream": False,
-            "options": {"temperature": 0, "seed": 42},
+            "keep_alive": settings.llm_keep_alive_s,
+            "options": {"temperature": 0, "seed": 42, "num_ctx": settings.llm_num_ctx},
         },
         timeout=120,
     )
