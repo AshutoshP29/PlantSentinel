@@ -119,6 +119,16 @@ export function signIn(username: string, password: string): UserAccount | null {
   return current
 }
 
+/** Demo switcher: become a seeded demo account without a password (never a manager-added one). */
+export function switchTo(username: string): UserAccount | null {
+  const u = SEED_USERS.find((x) => x.username === username)
+  if (!u) return null
+  const from = current?.username ?? '—'
+  current = publicUser(u)
+  logAudit('switch_user', `${from} → ${u.username}`, 'demo switch')
+  return current
+}
+
 export function signOut() {
   if (current) logAudit('sign_out', `username=${current.username}`, 'signed out')
   current = null

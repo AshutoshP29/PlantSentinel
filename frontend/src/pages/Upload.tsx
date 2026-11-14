@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useRef, useState, type DragEvent } from 'react'
+import { keyFinding } from '../api/adapters'
 import { api } from '../api/client'
 import { p101Inspection } from '../api/mock'
 import type { ClusterRun, IngestFile, IngestKind, IngestStatus, IngestSummary } from '../api/types'
@@ -214,18 +215,22 @@ export default function Upload() {
                   <div className="space-y-3">
                     <div className="text-lg font-semibold text-ink">Asset: {p101Inspection.tag}</div>
                     <div className="text-xs text-muted">
-                      {p101Inspection.report_no} · {formatDate(p101Inspection.date)} · {p101Inspection.inspector}
+                      {p101Inspection.report_no} · {formatDate(p101Inspection.date)}
                     </div>
-                    {p101Inspection.findings
-                      .filter((f) => f.flagged)
-                      .map((f, i) => (
-                        <div
-                          key={f.item}
-                          className={i === 0 ? 'rounded-lg bg-highlight px-3 py-2 font-semibold text-ink' : 'px-3 text-ink'}
-                        >
-                          {i === 0 ? `Finding: ${f.result.replace('Misalignment observed: ', 'misalignment ')}` : `${f.item}: ${f.result}`}
-                        </div>
-                      ))}
+                    {(() => {
+                      const key = keyFinding(p101Inspection)
+                      const others = p101Inspection.findings.filter((f) => f.flagged && f !== key).slice(0, 2)
+                      return (
+                        <>
+                          {key && <div className="rounded-lg bg-highlight px-3 py-2 font-semibold text-ink">Finding: {key.result}</div>}
+                          {others.map((f) => (
+                            <div key={f.item} className="px-3 text-sm text-ink">
+                              {f.item}: {f.result}
+                            </div>
+                          ))}
+                        </>
+                      )
+                    })()}
                   </div>
                 </div>
               ) : (
@@ -262,9 +267,15 @@ export default function Upload() {
                     </div>
                   ))}
                   <p className="pt-3 text-xs text-muted">
-                    {clusters.metrics.n_work_orders} work orders → {clusters.metrics.n_clusters} clusters →{' '}
-                    {clusters.metrics.n_failure_modes} failure modes · silhouette {clusters.metrics.silhouette.toFixed(2)} · agreement with
-                    ground truth (ARI) {clusters.metrics.ari_vs_truth.toFixed(2)}
+                    {[
+                      clusters.metrics.n_work_orders != null && `${clusters.metrics.n_work_orders} work orders`,
+                      clusters.metrics.n_clusters != null && `${clusters.metrics.n_clusters} clusters`,
+                      clusters.metrics.n_failure_modes != null && `${clusters.metrics.n_failure_modes} failure modes`,
+                      clusters.metrics.silhouette != null && `silhouette ${clusters.metrics.silhouette.toFixed(2)}`,
+                      clusters.metrics.ari_vs_truth != null && `agreement with ground truth (ARI) ${clusters.metrics.ari_vs_truth.toFixed(2)}`,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </p>
                 </div>
               ) : (

@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     outputs_dir: Path = REPO_ROOT / "outputs"  # generated documents (.docx / .xlsx)
     scans_dir: Path = REPO_ROOT / "data" / "scans"  # scanned inspection reports
     injection_docs_dir: Path = REPO_ROOT / "data" / "docs" / "demo_injection"
+    # When set, use a Chroma server (the `chroma` Compose service) instead of the embedded
+    # store in chroma_dir.
+    chroma_host: str | None = None
+    chroma_port: int = 8000
 
     # Privacy: when true, any non-Ollama outbound HTTP must raise (used by offline-check)
     block_egress: bool = False

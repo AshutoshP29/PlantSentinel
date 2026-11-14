@@ -59,8 +59,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     apply(null)
   }
 
+  const switchUser = async (username: string) => {
+    apply(await api.switchUser(username))
+  }
+
   if (!ready) return null
-  return <AuthContext.Provider value={{ session, signIn, signOut }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ session, signIn, signOut, switchUser }}>{children}</AuthContext.Provider>
 }
 
 /** Sends signed-out visitors to /login, remembering where they were going. */

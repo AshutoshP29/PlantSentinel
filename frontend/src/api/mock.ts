@@ -114,7 +114,7 @@ export const clusterRun: ClusterRun = {
   metrics: metrics.clustering,
 }
 
-export const ingestTotals = { records_parsed: 491, scans_ocrd: 3, manuals_indexed: 6 }
+export const ingestTotals = { records_parsed: 491, scans_ocrd: 4, manuals_indexed: 6 }
 
 export const demoFiles: { name: string; kind: 'work_orders' | 'manual' | 'scan'; detail: string }[] = [
   { name: 'work_orders.csv', kind: 'work_orders', detail: '491 records' },
@@ -124,30 +124,34 @@ export const demoFiles: { name: string; kind: 'work_orders' | 'manual' | 'scan';
   { name: 'sop_shaft_alignment.pdf', kind: 'manual', detail: '8 pages' },
   { name: 'sop_exchanger_cleaning.pdf', kind: 'manual', detail: '5 pages' },
   { name: 'vendor_seal_datasheet.pdf', kind: 'manual', detail: '4 pages' },
-  { name: 'inspection_P-101.jpg', kind: 'scan', detail: '1 page' },
-  { name: 'inspection_C-203.jpg', kind: 'scan', detail: '1 page' },
-  { name: 'inspection_E-302.jpg', kind: 'scan', detail: '1 page' },
+  { name: 'INSP-001_P-104.jpg', kind: 'scan', detail: '1 page' },
+  { name: 'INSP-002_E-302.jpg', kind: 'scan', detail: '1 page' },
+  { name: 'INSP-003_C-203.jpg', kind: 'scan', detail: '1 page' },
+  { name: 'INSP-004_P-101.jpg', kind: 'scan', detail: '1 page' },
 ]
 
 // ---------- Asset detail ----------
 
 /** Demo inspection for P-101 (scans in data/scans/ are still to come). */
+/** Same content as the committed scan data/scans/INSP-004_P-101.jpg (scripts/make_demo_scans.py). */
 export const p101Inspection: Inspection = {
-  id: 'insp-118',
+  id: 'INSP-004',
   tag: 'P-101',
-  date: '2026-11-12',
-  inspector: 'R. Menon',
-  report_no: 'IR-2026-118',
-  page: 2,
-  pages: 6,
-  file_path: 'data/scans/inspection_P-101.jpg',
+  date: '2026-11-06',
+  inspector: '—',
+  report_no: 'INSP-004',
+  page: 1,
+  pages: 1,
+  file_path: 'data/scans/INSP-004_P-101.jpg',
   findings: [
-    { item: 'Shaft alignment', result: 'Misalignment observed: 0.3 mm', flagged: true },
-    { item: 'Seal condition', result: 'Wear (moderate)', flagged: true },
-    { item: 'Bearing temperature', result: 'Normal (62 °C)', flagged: false },
-    { item: 'Coupling', result: 'Slight vibration at coupling end', flagged: false },
+    { item: 'Mechanical seal (DE)', result: 'Leakage at seal faces; uneven, one-sided wear track; carbon face chipped', flagged: true },
+    { item: 'Coupling alignment', result: 'Shaft misalignment 0.3 mm at coupling (parallel offset); angular 0.12 mm per 100 mm', flagged: true },
+    { item: 'Soft foot', result: '0.15 mm at motor NDE foot', flagged: true },
+    { item: 'Vibration', result: 'DE bearing 7.1 mm/s RMS (alarm 4.5), dominant at 2x running speed', flagged: true },
+    { item: 'Bearings', result: '66 °C DE / 61 °C NDE, serviceable', flagged: false },
   ],
 }
+
 
 // Typical values (AI4I medians) used in the explanations below
 const TYPICAL = { air_temp_k: 300.1, process_temp_k: 310.1, rpm: 1503, torque_nm: 40.1, tool_wear_min: 108 }
@@ -195,7 +199,20 @@ const STORY_RISK: Record<string, Pick<BackendRisk, 'risk_score' | 'risk_level' |
   },
 }
 
+/**
+ * Optional: fixtures/risk.json with the real predict_risk() output for every asset
+ * (an array of dicts, or an object keyed by tag). When present it wins, so demo-mode
+ * risk equals live mode exactly. The glob is empty when the file doesn't exist.
+ */
+const riskFixture = Object.values(
+  import.meta.glob<BackendRisk[] | Record<string, BackendRisk>>('./fixtures/risk.json', { eager: true, import: 'default' }),
+)[0]
+const RISK_FROM_BACKEND: Record<string, BackendRisk> = Array.isArray(riskFixture)
+  ? Object.fromEntries(riskFixture.map((x) => [x.tag, x]))
+  : (riskFixture ?? {})
+
 export function riskFor(tag: string): BackendRisk | null {
+  if (RISK_FROM_BACKEND[tag]) return RISK_FROM_BACKEND[tag]
   const c = conditions.find((x) => x.tag === tag)
   if (!c) return null
   const story = STORY_RISK[tag]

@@ -238,6 +238,8 @@ export interface AssetDetail {
   bad_actor: BadActor | null
   work_orders: WorkOrder[]
   risk: RiskPrediction | null
+  /** why risk is missing, e.g. the backend's 503 "Risk model not trained…" */
+  risk_error?: string | null
   readings: Reading[]
   latest_inspection: Inspection | null
 }
@@ -261,6 +263,17 @@ export interface IngestSummary {
   manuals_indexed: number
 }
 
+/** POST /api/ingest/work-orders (ingestion/work_orders.py) */
+export interface WorkOrderIngestResult {
+  file: string
+  rows: number
+  inserted: number
+  duplicates_skipped: number
+  rejected: number
+  errors: string[]
+  new_assets: string[]
+}
+
 export interface ClusterPreview {
   name: string
   events: number
@@ -270,39 +283,74 @@ export interface ClusterPreview {
 export interface ClusterRun {
   clusters: ClusterPreview[]
   /** from models/metrics.json "clustering" */
-  metrics: { n_clusters: number; n_failure_modes: number; silhouette: number; ari_vs_truth: number; n_work_orders: number }
+  metrics: { n_clusters?: number; n_failure_modes?: number; silhouette?: number | null; ari_vs_truth?: number; n_work_orders?: number }
 }
 
 // ---------- Agent ----------
 
-export interface Citation {
-  id: number
-  kind: 'inspection' | 'manual' | 'work_orders'
-  label: string // e.g. "Inspection · p. 2"
-  title: string // e.g. "Inspection report · page 2"
-  quote: string
+// Mirrors backend/app/agent/graph.py EVENT_TYPES and backend/app/api/agent.py exactly.
+// POST /api/agent/chat {message, history} streams named SSE events: `event: <type>`,
+// `data: <json payload>`.
+
+/** One retrieved manual passage; the answer cites it as [S1], [S2] … */
+export interface AgentSource {
+  ref: string // "S1"
+  title: string
+  source: string // file name, e.g. "centrifugal_pump_om_manual.md"
+  page: number
+  section: string
+  score: number
+  snippet: string
 }
+
+export interface AgentWorkOrder {
+  work_order_id: string
+  tag: string
+  priority: string
+  file: string
+  download_url: string // e.g. /api/agent/work-orders/<file>.docx
+}
+
+export type AgentStreamEvent =
+  | { type: 'run_started'; data: { run_id: string; question: string } }
+  | { type: 'status'; data: { stage: string; message: string } }
+  | { type: 'tool_started'; data: { call_id: string; tool: string; args: Record<string, unknown> } }
+  | { type: 'tool_completed'; data: { call_id: string; tool: string; status: string; summary: string } }
+  | { type: 'sources'; data: { sources: AgentSource[] } }
+  | { type: 'work_order'; data: AgentWorkOrder }
+  | { type: 'answer'; data: { text: string; cited_refs: string[]; unknown_refs: string[]; work_orders: AgentWorkOrder[] } }
+  | { type: 'error'; data: { message: string } }
+  | { type: 'done'; data: { run_id: string; iterations: number; elapsed_s: number } }
+
+export type AgentEventType = AgentStreamEvent['type']
+
+/** One prior turn, sent as `history` with the next message (max 20). */
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+/** GET /api/agent/status */
+export interface AgentStatus {
+  ollama: { reachable: boolean; host: string; missing_models: string[]; error: string | null }
+  manual_chunks: number
+  manual_store_error: string | null
+  ready: boolean
+}
+
+// ----- screen-side agent types -----
 
 export type AgentStepStatus = 'running' | 'done' | 'blocked' | 'error'
 
 export interface AgentStep {
-  id: string
+  id: string // call_id
   tool: string
+  args: Record<string, unknown>
   summary: string
   status: AgentStepStatus
+  started_at: number
   duration_ms?: number
 }
-
-/**
- * Events streamed by POST /api/agent/ask (Server-Sent Events, one JSON per `data:` line).
- * Placeholder until the agent's own graph.EVENT_TYPES is available; the UI will follow it.
- */
-export type AgentEvent =
-  | { type: 'step'; step: AgentStep }
-  | { type: 'token'; text: string }
-  | { type: 'done'; citations: Citation[]; can_draft_work_order: boolean }
-  | { type: 'blocked'; attempt: BlockedAttempt }
-  | { type: 'error'; message: string }
 
 // ---------- Documents ----------
 

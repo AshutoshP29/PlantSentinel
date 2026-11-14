@@ -1,5 +1,8 @@
 # Windows equivalent of the Makefile. Usage: .\make.ps1 <target>
-param([Parameter(Position = 0)][string]$Target = "help")
+param(
+    [Parameter(Position = 0)][string]$Target = "help",
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest = @()
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -25,7 +28,11 @@ switch ($Target) {
     "test" {
         Invoke-Step "uv run pytest -m 'not integration'"
     }
+    "seed" {
+        # Fresh demo database; add args after the target, e.g. .\make.ps1 seed --cluster live
+        Invoke-Step "uv run python scripts/seed_demo.py --reset $($Rest -join ' ')"
+    }
     default {
-        Write-Host "Targets: setup, lint, format, test  (seed, dev, up, offline-check come later)"
+        Write-Host "Targets: setup, lint, format, test, seed  (dev, up, offline-check come later)"
     }
 }

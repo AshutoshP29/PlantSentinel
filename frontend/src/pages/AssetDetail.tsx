@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { isFailureMode } from '../api/adapters'
+import { isFailureMode, keyFinding } from '../api/adapters'
 import { api } from '../api/client'
 import { AS_OF } from '../api/mock'
 import type { AssetDetail as Detail, Reading, TimelineEvent } from '../api/types'
@@ -251,7 +251,7 @@ function DetailView({
               </>
             ) : (
               <EmptyState icon={Gauge} title="No risk score yet">
-                The model has no operating condition for this asset.
+                {d.risk_error ?? 'The model has no operating condition for this asset.'}
               </EmptyState>
             )}
           </Card>
@@ -295,17 +295,17 @@ function DetailView({
                     <CalendarDays className="size-4 text-ink-2" aria-hidden />
                     {formatDate(d.latest_inspection.date)}
                   </div>
-                  {d.latest_inspection.findings
-                    .filter((f) => f.flagged)
-                    .slice(0, 1)
-                    .map((f) => (
-                      <div key={f.item} className="flex items-start gap-2 text-ink">
+                  {(() => {
+                    const f = keyFinding(d.latest_inspection)
+                    return f ? (
+                      <div className="flex items-start gap-2 text-ink">
                         <Crosshair className="mt-0.5 size-4 shrink-0 text-ink-2" aria-hidden />
                         <span>
-                          {f.item}: <span className="font-semibold">{f.result.replace('Misalignment observed: ', 'misaligned ')}</span>
+                          {f.item}: <span className="font-semibold">{f.result.split(';')[0]}</span>
                         </span>
                       </div>
-                    ))}
+                    ) : null
+                  })()}
                   <Button size="sm" variant="soft" onClick={() => setScanOpen(true)}>
                     View scan
                   </Button>

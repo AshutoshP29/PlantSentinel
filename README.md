@@ -21,7 +21,8 @@ external network calls at runtime.
   ollama pull qwen2.5:7b-instruct-q3_K_M   # chat / agent (LLM_MODEL)
   ollama pull qwen2.5vl:3b                 # scanned inspections (VISION_MODEL)
   ollama pull nomic-embed-text             # embeddings (EMBED_MODEL)
-  # 8+ GB GPU: qwen2.5:7b-instruct and qwen2.5vl:7b; faster fallback: qwen2.5:3b-instruct
+  ollama pull qwen2.5:3b-instruct          # faster fallback (set LLM_MODEL=qwen2.5:3b-instruct)
+  # 8+ GB GPU: qwen2.5:7b-instruct and qwen2.5vl:7b
   ```
 
 ## Setup
@@ -46,6 +47,82 @@ commit-message policy check.
 
 Tests never need Ollama or a GPU. Tests that use a real model are marked
 `@pytest.mark.integration` and are skipped by default.
+
+## Seed the demo data
+
+One command loads everything the demo needs into a fresh database (about 15 s; safe to re-run):
+
+```powershell
+.\make.ps1 seed                      # or: uv run python scripts/seed_demo.py --reset
+.\make.ps1 seed --cluster live       # re-cluster with Ollama instead of the saved clusters (~80 s)
+```
+
+Inside the Compose stack: `docker compose run --rm backend python /app/scripts/seed_demo.py --reset`.
+
+| Step | What it does | Needs Ollama |
+|---|---|---|
+| data, scans | uses the committed synthetic CSVs and inspection images (regenerates if missing) | no |
+| database | schema, equipment register, 491 work orders | no |
+| clustering | failure modes from `clusters_fallback.json` (`--cluster live` to recompute) | live only |
+| risk model | trains XGBoost on AI4I if `models/risk_xgb.json` is missing (~10 s) | no |
+| manuals | indexes `data/docs/manuals` into ChromaDB | yes (warns if not) |
+| inspections | OCR of `data/scans` into `inspections` (once the pipeline exists) | yes (warns if not) |
+| verify | checks the planted story: P-101, C-203, E-302 are the top bad actors | no |
+
+The run fails if a required step fails or the story doesn't verify. The data ends on 2026-11-13;
+set `ANALYSIS_AS_OF=2026-11-14` in `.env` so the agent's "today" matches it.
+
+## Run in containers
+
+Four services, defined in `docker-compose.yml`:
+
+| Service | Role | Network |
+|---|---|---|
+| `gateway` | nginx; the only host port (`127.0.0.1:8080`); proxies `/api` to the backend | `plant` + `edge` |
+| `backend` | FastAPI, SQLite, analytics, agent, guard | `plant` |
+| `chroma` | vector store server | `plant` |
+| `ollama` | LLM, vision and embedding models on the GPU | `plant` |
+
+`plant` is an internal-only Docker network, so `backend`, `chroma` and `ollama` have no route
+off the machine. The gateway holds no data and only forwards requests.
+
+Needs an NVIDIA GPU with Docker Desktop on the WSL2 backend. Check GPU passthrough with
+`docker run --rm --gpus all ubuntu nvidia-smi`.
+
+```powershell
+# once: copy the weights your host Ollama already pulled into a Docker volume (about 90 s)
+docker compose --profile setup run --rm model-copy
+# ...or, if they are not on the host, download them instead (needs internet)
+docker compose --profile setup run --rm model-pull
+
+# every time (works offline after the first build)
+docker compose up -d --build
+```
+
+**Quit the host Ollama app before every run** (system tray → Quit, or `ollama stop <model>`).
+If it is holding a model in VRAM, the container falls back to CPU and drops below 1 token/s.
+After asking one question, confirm the container is on the GPU:
+
+```powershell
+docker compose exec ollama ollama ps    # PROCESSOR column should say "100% GPU"
+```
+
+The gateway serves the UI from `frontend/dist`, so build the frontend first
+(`npm run build` in `frontend/`, with `VITE_USE_MOCK=false`). Without it `/api` still works.
+
+Prove the isolation from inside the backend container. The internal services must answer and
+everything outside must be unreachable:
+
+```powershell
+docker compose exec backend python /app/scripts/check_isolation.py
+```
+
+Then open <http://127.0.0.1:8080/api/health>. Set `LLM_MODEL`, `VISION_MODEL` or `EMBED_MODEL`
+in a `.env` file to change models; `EXTRA_MODELS` adds more to the pull. Build the backend with
+`--build-arg UV_EXTRAS="--extra ocr"` to include PaddleOCR.
+
+Running without Docker still works: with `CHROMA_HOST` unset the backend uses the embedded
+Chroma store, and `OLLAMA_HOST` defaults to Ollama on the host.
 
 ## Data
 

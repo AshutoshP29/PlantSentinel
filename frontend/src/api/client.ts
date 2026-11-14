@@ -1,15 +1,21 @@
 // Every screen gets its data through this file.
-// Demo mode is on by default; set VITE_USE_MOCK=false in frontend/.env.local to use the
-// FastAPI backend (see frontend/README.md for the endpoints). Raw backend shapes go
-// through adapters.ts in both modes, so the screens never see raw fields.
+//
+// Live vs demo, per screen:
+//   VITE_USE_MOCK=false            everything talks to the FastAPI backend
+//   VITE_LIVE=agent,bad_actors     only these features are live; the rest stay on demo data
+// Features: agent, assets, bad_actors, risk, work_orders, summary, failure_modes, mtbf,
+//           privacy, audit, documents, upload.
+// Raw backend shapes go through adapters.ts in both modes, so the screens never see raw fields.
 
-import { toAsset, toAuditEntry, toBadActor, toReadings, toRisk } from './adapters'
+import { can, type RoleId } from '../lib/roles'
+import { isBlockedTool, specRole, toAsset, toAuditEntry, toBadActor, toReadings, toRisk } from './adapters'
 import { runMockAgent, runMockInjection } from './agentMock'
 import { emit } from './events'
 import * as mock from './mock'
 import * as store from './store'
 import type {
-  AgentEvent,
+  AgentStatus,
+  AgentStreamEvent,
   Asset,
   AssetDetail,
   AuditEntry,
@@ -21,6 +27,7 @@ import type {
   BackendWorkOrder,
   BadActor,
   BlockedAttempt,
+  ChatTurn,
   ClusterRun,
   DashboardFilters,
   DashboardSummary,
@@ -35,9 +42,39 @@ import type {
   PrivacyStatus,
   UserAccount,
   WorkOrderDraft,
+  WorkOrderIngestResult,
 } from './types'
 
+export type Feature =
+  | 'agent'
+  | 'assets'
+  | 'bad_actors'
+  | 'risk'
+  | 'work_orders'
+  | 'summary'
+  | 'failure_modes'
+  | 'mtbf'
+  | 'privacy'
+  | 'audit'
+  | 'documents'
+  | 'upload'
+
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
+const LIVE = new Set(
+  String(import.meta.env.VITE_LIVE ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+)
+export const isLive = (f: Feature) => !USE_MOCK || LIVE.has(f) || LIVE.has('all')
+/** What the top bar shows: all demo, partly live, or fully live. */
+export const DATA_MODE: 'demo' | 'mixed' | 'live' = !USE_MOCK ? 'live' : LIVE.size ? 'mixed' : 'demo'
+
+/** Sign-in is local (browser) unless the team adds auth endpoints: VITE_AUTH=server. */
+export const AUTH_SERVER = import.meta.env.VITE_AUTH === 'server'
+/** Quick "switch user" for demos (demo accounts only). Set VITE_DEMO_SWITCHER=false to hide. */
+export const DEMO_SWITCHER = !AUTH_SERVER && import.meta.env.VITE_DEMO_SWITCHER !== 'false'
+
 export const SITE = mock.SITE
 export const DEMO_PASSWORD = store.DEMO_PASSWORD
 
@@ -58,11 +95,22 @@ export function setSessionUser(session: AuthSession | null) {
   store.setCurrentUser(session?.user ?? null)
 }
 
-/** Every request carries the token plus role/user so the backend guard can enforce and audit. */
+/**
+ * Every request says who is asking:
+ *   X-Role        the spec's role: engineer | technician (what the backend guard checks)
+ *   X-Plant-Role  the detailed plant role id (lib/roles.ts)
+ *   X-User        display name, for the audit log
+ */
 function headers(extra: Record<string, string> = {}): Record<string, string> {
   const { role, user } = store.getSession()
-  const h: Record<string, string> = { Accept: 'application/json', 'X-Role': role, 'X-User': user, ...extra }
-  if (token) h.Authorization = `Bearer ${token}`
+  const h: Record<string, string> = {
+    Accept: 'application/json',
+    'X-Role': role ? specRole(can(role as RoleId, 'export_reports')) : '',
+    'X-Plant-Role': role,
+    'X-User': user,
+    ...extra,
+  }
+  if (token && AUTH_SERVER) h.Authorization = `Bearer ${token}`
   return h
 }
 
@@ -75,7 +123,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (!res.ok) {
     let detail = res.statusText
     try {
-      detail = ((await res.json()) as { detail?: string }).detail ?? detail
+      const j = (await res.json()) as { detail?: unknown }
+      if (typeof j.detail === 'string') detail = j.detail
     } catch {
       /* not JSON */
     }
@@ -95,7 +144,7 @@ function qs(params: Record<string, string | number | undefined>): string {
 
 let assetCache: Promise<Asset[]> | null = null
 function loadAssets(): Promise<Asset[]> {
-  assetCache ??= (USE_MOCK ? fromMock(mock.assets, 100) : get<BackendAsset[]>('/assets'))
+  assetCache ??= (isLive('assets') ? get<BackendAsset[]>('/assets') : fromMock(mock.assets, 100))
     .then((rows) => rows.map(toAsset))
     .catch((e: unknown) => {
       assetCache = null
@@ -105,33 +154,58 @@ function loadAssets(): Promise<Asset[]> {
 }
 
 async function loadBadActorsRaw(windowDays = 180): Promise<BackendBadActor[]> {
-  return USE_MOCK ? fromMock(mock.badActors) : get(`/bad-actors${qs({ top_n: 50, window_days: windowDays })}`)
+  return isLive('bad_actors') ? get(`/bad-actors${qs({ top_n: 50, window_days: windowDays })}`) : fromMock(mock.badActors)
 }
 
-/** Mock-only: demo counts are for 180 days; scale them for the other windows. */
+/** Demo-only: demo counts are for 180 days; scale them for the other windows. */
 const scale = (f: DashboardFilters) => f.window_days / 180
 
-export const api = {
-  // ---------- auth & users ----------
+// ---------- blocked attempts seen in agent streams ----------
 
-  /** Backend (proposed): POST /api/auth/login {username, password} → AuthSession */
+const streamBlocked: BlockedAttempt[] = []
+
+/** Turns a blocked tool call from any agent stream into the red alert. */
+function noteBlocked(tool: string, args: Record<string, unknown>, summary: string) {
+  const target = String(args.url ?? args.target ?? args.host ?? tool)
+  streamBlocked.push({
+    id: `s-${Date.now()}`,
+    at: new Date().toISOString(),
+    tool,
+    target: target.replace(/^https?:\/\//, '').split('/')[0],
+    source: 'agent run',
+    reason: summary.replace(/^blocked:\s*/i, '') || 'Not on allow-list',
+  })
+  if (!isLive('audit')) store.logAudit(tool, JSON.stringify(args), summary, 'blocked')
+  emit('blocked')
+}
+
+export const api = {
+  // ---------- auth & users (local unless VITE_AUTH=server) ----------
+
   async login(username: string, password: string): Promise<AuthSession> {
-    if (!USE_MOCK) return post('/auth/login', { username, password })
+    if (AUTH_SERVER) return post('/auth/login', { username, password })
     await delay(350)
     const user = store.signIn(username, password)
     if (!user) throw new Error('Wrong username or password')
-    return { token: `demo-${user.username}`, user }
+    return { token: `local-${user.username}`, user }
   },
 
-  /** Backend (proposed): POST /api/auth/logout */
+  /** Demo switcher: sign in as a seeded demo account without a password. */
+  async switchUser(username: string): Promise<AuthSession> {
+    if (!DEMO_SWITCHER) throw new Error('Switching users is turned off')
+    const user = store.switchTo(username)
+    if (!user) throw new Error('Only demo accounts can be switched to')
+    return { token: `local-${user.username}`, user }
+  },
+
   async logout(): Promise<void> {
-    if (USE_MOCK) store.signOut()
-    else await post('/auth/logout').catch(() => undefined)
+    if (AUTH_SERVER) await post('/auth/logout').catch(() => undefined)
+    else store.signOut()
   },
 
-  /** Re-validates a saved session on page load. Backend (proposed): GET /api/auth/me → UserAccount */
+  /** Re-validates a saved session on page load. */
   async resume(saved: AuthSession): Promise<AuthSession | null> {
-    if (USE_MOCK) {
+    if (!AUTH_SERVER) {
       const user = store.findUser(saved.user.username)
       return user ? { token: saved.token, user } : null
     }
@@ -143,30 +217,31 @@ export const api = {
     }
   },
 
-  /** Backend (proposed): GET /api/users */
   listUsers(): Promise<UserAccount[]> {
-    return USE_MOCK ? fromMock(store.listUsers(), 120) : get('/users')
+    return AUTH_SERVER ? get('/users') : fromMock(store.listUsers(), 120)
   },
 
-  /** Backend (proposed): POST /api/users — must apply the same hierarchy rule (lib/roles.ts) */
   async createUser(input: NewUser): Promise<UserAccount> {
-    if (!USE_MOCK) return post('/users', input)
+    if (AUTH_SERVER) return post('/users', input)
     await delay(300)
     return store.createUser(input)
   },
 
-  /** Backend (proposed): DELETE /api/users/:username */
   async removeUser(username: string): Promise<void> {
-    if (!USE_MOCK) return request('DELETE', `/users/${encodeURIComponent(username)}`)
+    if (AUTH_SERVER) return request('DELETE', `/users/${encodeURIComponent(username)}`)
     await delay(200)
     store.removeUser(username)
   },
 
+  demoUsernames(): { username: string; role: string }[] {
+    return store.listUsers().filter((u) => u.added_by === null).map((u) => ({ username: u.username, role: u.role }))
+  },
+
   // ---------- dashboard ----------
 
-  /** Backend (proposed): GET /api/dashboard/summary?window_days= */
+  /** Backend: GET /api/dashboard/summary?window_days= */
   getSummary(f: DashboardFilters): Promise<DashboardSummary> {
-    if (!USE_MOCK) return get(`/dashboard/summary${qs({ window_days: f.window_days })}`)
+    if (isLive('summary')) return get(`/dashboard/summary${qs({ window_days: f.window_days })}`)
     const k = scale(f)
     const s = mock.summary
     return fromMock({
@@ -177,7 +252,7 @@ export const api = {
     })
   },
 
-  /** Backend: GET /api/bad-actors → bad_actors.get_bad_actors(). Unit/type/criticality filters run here. */
+  /** Backend: GET /api/bad-actors → bad_actors.score_bad_actors(). Unit/type/criticality filters run here. */
   async getBadActors(f: DashboardFilters, topN = 10): Promise<BadActor[]> {
     const [raw, assets] = await Promise.all([loadBadActorsRaw(f.window_days), loadAssets()])
     const byTag = new Map(assets.map((a) => [a.tag, a]))
@@ -190,16 +265,16 @@ export const api = {
       .map((b, i) => ({ ...b, rank: i + 1 }))
   },
 
-  /** Backend (proposed): GET /api/failure-modes?window_days= */
+  /** Backend: GET /api/failure-modes?window_days= */
   getFailureModes(f: DashboardFilters): Promise<FailureModeCount[]> {
-    if (!USE_MOCK) return get(`/failure-modes${qs({ window_days: f.window_days })}`)
+    if (isLive('failure_modes')) return get(`/failure-modes${qs({ window_days: f.window_days })}`)
     const k = scale(f)
     return fromMock(mock.failureModes.map((m) => ({ ...m, events: Math.max(1, Math.round(m.events * k)) })))
   },
 
-  /** Backend (proposed): GET /api/mtbf-trend */
+  /** Backend: GET /api/mtbf-trend (plant MTBF, trailing 90 days, by month) */
   getPlantMtbf(): Promise<MtbfPoint[]> {
-    return USE_MOCK ? fromMock(mock.plantMtbf) : get('/mtbf-trend')
+    return isLive('mtbf') ? get('/mtbf-trend') : fromMock(mock.plantMtbf)
   },
 
   // ---------- assets ----------
@@ -216,18 +291,18 @@ export const api = {
     const assets = await loadAssets()
     const asset = assets.find((a) => a.tag === tag)
     if (!asset) throw new Error(`No asset with tag ${tag}`)
+    const t = encodeURIComponent(tag)
+    let riskError: string | null = null
 
     const [workOrders, riskRaw, badRaw, inspection] = await Promise.all([
-      USE_MOCK
-        ? fromMock(mock.workOrders.filter((w) => w.tag === tag))
-        : get<BackendWorkOrder[]>(`/assets/${encodeURIComponent(tag)}/work-orders`),
-      USE_MOCK
-        ? fromMock(mock.riskFor(tag))
-        : get<BackendRisk>(`/risk/${encodeURIComponent(tag)}`).catch(() => null),
+      isLive('work_orders') ? get<BackendWorkOrder[]>(`/assets/${t}/work-orders`) : fromMock(mock.workOrders.filter((w) => w.tag === tag)),
+      isLive('risk')
+        ? get<BackendRisk>(`/risk/${t}`).catch((e: unknown) => ((riskError = e instanceof Error ? e.message : String(e)), null))
+        : fromMock(mock.riskFor(tag)),
       loadBadActorsRaw(),
-      USE_MOCK
-        ? fromMock(tag === 'P-101' ? mock.p101Inspection : null)
-        : get<Inspection>(`/assets/${encodeURIComponent(tag)}/inspection`).catch(() => null),
+      isLive('work_orders')
+        ? get<Inspection>(`/assets/${t}/inspection`).catch(() => null)
+        : fromMock(tag === 'P-101' ? mock.p101Inspection : null),
     ])
 
     const worst = badRaw.find((b) => b.tag === tag)
@@ -236,6 +311,7 @@ export const api = {
       bad_actor: worst ? toBadActor(worst, asset, badRaw.indexOf(worst) + 1) : null,
       work_orders: [...workOrders].sort((a, b) => b.date.localeCompare(a.date)),
       risk: riskRaw ? toRisk(riskRaw, mock.RISK_MODEL_NOTE) : null,
+      risk_error: riskError,
       readings: riskRaw ? toReadings(riskRaw.operating_condition) : [],
       latest_inspection: inspection,
     }
@@ -243,10 +319,7 @@ export const api = {
 
   // ---------- upload ----------
 
-  /**
-   * Ingests files and reports per-file progress through onUpdate.
-   * Backend (proposed): POST /api/ingest (multipart, field "files") → { files: IngestFile[], summary }.
-   */
+  /** Backend: POST /api/ingest/work-orders per work-order file (manuals/scans: not yet). */
   async ingest(files: { name: string; file?: File }[], onUpdate: (files: IngestFile[]) => void): Promise<IngestSummary> {
     const items: IngestFile[] = files.map((f, i) => ({
       id: `f${Date.now()}-${i}`,
@@ -256,15 +329,40 @@ export const api = {
     }))
     onUpdate(items.map((x) => ({ ...x })))
 
-    if (!USE_MOCK) {
-      const form = new FormData()
-      files.forEach((f) => f.file && form.append('files', f.file))
-      const res = await fetch('/api/ingest', { method: 'POST', headers: headers(), body: form })
-      if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
-      const out = (await res.json()) as { files: IngestFile[]; summary: IngestSummary }
-      onUpdate(out.files)
+    if (isLive('upload')) {
+      // Backend: POST /api/ingest/work-orders, one file per request (field "file").
+      // Manuals and scans have no upload endpoint yet; they're indexed by scripts/agent_cli.py.
+      let records = 0
+      for (const item of items) {
+        const f = files.find((x) => x.name === item.name)?.file
+        if (item.kind !== 'work_orders' || !f) {
+          item.status = 'failed'
+          item.detail = item.kind === 'manual' ? 'No upload endpoint yet (run agent_cli ingest)' : 'No scan upload endpoint yet'
+          onUpdate(items.map((x) => ({ ...x })))
+          continue
+        }
+        item.status = 'parsing'
+        onUpdate(items.map((x) => ({ ...x })))
+        const form = new FormData()
+        form.append('file', f)
+        const res = await fetch('/api/ingest/work-orders', { method: 'POST', headers: headers(), body: form })
+        if (res.ok) {
+          const r = (await res.json()) as WorkOrderIngestResult
+          records += r.rows
+          item.status = 'done'
+          item.detail = `${r.inserted} new · ${r.duplicates_skipped} duplicates${r.rejected ? ` · ${r.rejected} rejected` : ''}`
+        } else {
+          item.status = 'failed'
+          item.detail = `Rejected (${res.status})`
+        }
+        onUpdate(items.map((x) => ({ ...x })))
+      }
       emit('ingest')
-      return out.summary
+      return {
+        records_parsed: records,
+        scans_ocrd: 0,
+        manuals_indexed: 0,
+      }
     }
 
     for (const item of items) {
@@ -292,9 +390,9 @@ export const api = {
     return mock.demoFiles.map((f) => f.name)
   },
 
-  /** Backend (proposed): POST /api/cluster → ClusterRun (cluster.recluster + models/metrics.json) */
+  /** Backend: POST /api/cluster → {clusters, metrics} */
   async runClustering(): Promise<ClusterRun> {
-    if (!USE_MOCK) return post('/cluster')
+    if (isLive('upload')) return post('/cluster')
     await delay(1400)
     store.logAudit('cluster_failures', '491 work orders', '15 failure modes')
     return structuredClone(mock.clusterRun)
@@ -302,33 +400,71 @@ export const api = {
 
   /** Backend (proposed): DELETE /api/data */
   async clearData(): Promise<void> {
-    if (!USE_MOCK) return request('DELETE', '/data')
+    if (isLive('upload')) return request('DELETE', '/data')
     await delay(200)
   },
 
   // ---------- agent ----------
 
-  /** Streams agent events (SSE). Backend: POST /api/agent/ask {question, tag}. Returns a cancel fn. */
-  askAgent(question: string, tag: string | null, onEvent: (e: AgentEvent) => void): () => void {
-    if (USE_MOCK) return runMockAgent(question, onEvent)
-    return streamSse('/agent/ask', { question, tag }, onEvent)
+  /**
+   * Streams one agent run. Backend: POST /api/agent/chat {message, history} → SSE with
+   * graph.EVENT_TYPES. Blocked tool calls also raise the red alert. Returns a cancel fn.
+   */
+  askAgent(message: string, tag: string | null, history: ChatTurn[], onEvent: (e: AgentStreamEvent) => void): () => void {
+    const started = new Map<string, { tool: string; args: Record<string, unknown> }>()
+    const watch = (e: AgentStreamEvent) => {
+      if (e.type === 'tool_started') started.set(e.data.call_id, { tool: e.data.tool, args: e.data.args })
+      if (e.type === 'tool_completed' && isBlockedTool(e.data.status, e.data.summary)) {
+        noteBlocked(e.data.tool, started.get(e.data.call_id)?.args ?? {}, e.data.summary)
+      }
+      onEvent(e)
+    }
+    if (!isLive('agent')) return runMockAgent(message, tag, watch)
+    return streamSse('/agent/chat', { message, history: history.slice(-20) }, watch)
   },
 
-  /** Plays the poisoned vendor PDF scenario. Backend (proposed): POST /api/privacy/injection-test (SSE). */
-  runInjectionTest(onEvent: (e: AgentEvent) => void): () => void {
-    if (USE_MOCK) return runMockInjection(onEvent)
-    return streamSse('/privacy/injection-test', {}, onEvent)
+  /** Backend: GET /api/agent/status (Ollama, models, indexed manual passages). */
+  getAgentStatus(): Promise<AgentStatus> {
+    if (isLive('agent')) return get('/agent/status')
+    return fromMock(
+      {
+        ollama: { reachable: true, host: 'http://ollama:11434', missing_models: [], error: null },
+        manual_chunks: 38,
+        manual_store_error: null,
+        ready: true,
+      },
+      150,
+    )
+  },
+
+  /** Backend: GET /api/agent/work-orders/{file} (download_url from the work_order event). */
+  agentDownloadUrl(url: string): string | null {
+    return isLive('agent') ? url : null
+  },
+
+  /** Plays the poisoned vendor PDF scenario. Backend (proposed, privacy): POST /api/privacy/injection-test (same events). */
+  runInjectionTest(onEvent: (e: AgentStreamEvent) => void): () => void {
+    const started = new Map<string, Record<string, unknown>>()
+    const watch = (e: AgentStreamEvent) => {
+      if (e.type === 'tool_started') started.set(e.data.call_id, e.data.args)
+      if (e.type === 'tool_completed' && isBlockedTool(e.data.status, e.data.summary)) {
+        noteBlocked(e.data.tool, started.get(e.data.call_id) ?? {}, e.data.summary)
+      }
+      onEvent(e)
+    }
+    if (!isLive('privacy')) return runMockInjection(watch)
+    return streamSse('/privacy/injection-test', {}, watch)
   },
 
   // ---------- documents ----------
 
   getDocuments(): Promise<DocumentItem[]> {
-    return USE_MOCK ? fromMock(store.listDocuments(), 150) : get('/documents')
+    return isLive('documents') ? get('/documents') : fromMock(store.listDocuments(), 150)
   },
 
   /** Backend (proposed): POST /api/documents/work-order {tag} → DocumentItem (writes the .docx) */
   async createWorkOrder(tag: string): Promise<DocumentItem> {
-    if (!USE_MOCK) return post('/documents/work-order', { tag })
+    if (isLive('documents')) return post('/documents/work-order', { tag })
     await delay(700)
     store.logAudit('generate_work_order', `tag=${tag}`, 'draft created')
     return store.addWorkOrder(tag)
@@ -336,7 +472,7 @@ export const api = {
 
   /** Backend (proposed): POST /api/documents/bad-actor-report → DocumentItem (writes the .xlsx) */
   async exportBadActorReport(): Promise<DocumentItem> {
-    if (!USE_MOCK) return post('/documents/bad-actor-report')
+    if (isLive('documents')) return post('/documents/bad-actor-report')
     await delay(600)
     store.logAudit('export_report', 'type=bad_actors', 'xlsx created')
     return store.addBadActorReport()
@@ -344,7 +480,7 @@ export const api = {
 
   /** Backend (proposed): POST /api/documents/:id/approve */
   async approveWorkOrder(docId: string): Promise<void> {
-    if (!USE_MOCK) {
+    if (isLive('documents')) {
       await post(`/documents/${docId}/approve`)
       return
     }
@@ -354,7 +490,7 @@ export const api = {
 
   /** Backend (proposed): PUT /api/documents/:id/work-order */
   async saveWorkOrder(docId: string, draft: WorkOrderDraft): Promise<void> {
-    if (!USE_MOCK) {
+    if (isLive('documents')) {
       await request('PUT', `/documents/${docId}/work-order`, draft)
       return
     }
@@ -364,13 +500,14 @@ export const api = {
 
   /** Backend (proposed): GET /api/documents/:id/download streams the file. */
   downloadUrl(doc: DocumentItem): string | null {
-    return USE_MOCK ? null : `/api/documents/${doc.id}/download`
+    return isLive('documents') ? `/api/documents/${doc.id}/download` : null
   },
 
   // ---------- privacy ----------
 
+  /** Backend (C): GET /api/privacy/status, polled every 2 s */
   getPrivacyStatus(): Promise<PrivacyStatus> {
-    if (!USE_MOCK) return get('/privacy/status')
+    if (isLive('privacy')) return get('/privacy/status')
     return fromMock(
       {
         external_connections: 0,
@@ -387,13 +524,15 @@ export const api = {
     )
   },
 
-  getBlockedAttempts(): Promise<BlockedAttempt[]> {
-    return USE_MOCK ? fromMock(store.listBlocked(), 80) : get('/privacy/blocked')
+  /** Blocked attempts: from the backend (C, proposed) plus anything blocked in this browser's agent runs. */
+  async getBlockedAttempts(): Promise<BlockedAttempt[]> {
+    const server = isLive('privacy') ? await get<BlockedAttempt[]>('/privacy/blocked').catch(() => []) : await fromMock(store.listBlocked(), 80)
+    return [...streamBlocked, ...server].sort((a, b) => b.at.localeCompare(a.at))
   },
 
   /** Backend (proposed): GET /api/audit-log → audit_log rows */
   async getAuditLog(): Promise<AuditEntry[]> {
-    if (USE_MOCK) return fromMock(store.listAudit(), 120)
+    if (!isLive('audit')) return fromMock(store.listAudit(), 120)
     return (await get<BackendAuditRow[]>('/audit-log')).map(toAuditEntry)
   },
 }
@@ -405,9 +544,13 @@ function kindFor(name: string): IngestKind {
   return 'scan'
 }
 
-/** POST + read a text/event-stream response, calling onEvent per JSON `data:` line. */
-function streamSse(path: string, body: unknown, onEvent: (e: AgentEvent) => void): () => void {
+/**
+ * POST + read a text/event-stream response with named events (sse_starlette):
+ *   event: tool_started\r\n data: {...}\r\n\r\n      (": ping" comment lines are ignored)
+ */
+function streamSse(path: string, body: unknown, onEvent: (e: AgentStreamEvent) => void): () => void {
   const ctrl = new AbortController()
+  const fail = (message: string) => onEvent({ type: 'error', data: { message } })
   void (async () => {
     try {
       const res = await fetch(`/api${path}`, {
@@ -422,19 +565,32 @@ function streamSse(path: string, body: unknown, onEvent: (e: AgentEvent) => void
       for (;;) {
         const { value, done } = await reader.read()
         if (done) break
-        buf += value
-        const lines = buf.split('\n')
-        buf = lines.pop() ?? ''
-        for (const line of lines) {
-          if (!line.startsWith('data:')) continue
-          const evt = JSON.parse(line.slice(5).trim()) as AgentEvent
-          if (evt.type === 'blocked') emit('blocked')
-          onEvent(evt)
+        buf += value.replace(/\r\n?/g, '\n')
+        let cut: number
+        while ((cut = buf.indexOf('\n\n')) !== -1) {
+          const block = buf.slice(0, cut)
+          buf = buf.slice(cut + 2)
+          let name = 'message'
+          const data: string[] = []
+          for (const line of block.split('\n')) {
+            if (!line || line.startsWith(':')) continue
+            const i = line.indexOf(':')
+            const field = i === -1 ? line : line.slice(0, i)
+            const val = i === -1 ? '' : line.slice(i + 1).replace(/^ /, '')
+            if (field === 'event') name = val
+            else if (field === 'data') data.push(val)
+          }
+          if (!data.length) continue
+          try {
+            onEvent({ type: name, data: JSON.parse(data.join('\n')) } as AgentStreamEvent)
+          } catch {
+            /* skip a malformed event rather than end the run */
+          }
         }
       }
       emit('audit')
     } catch (e) {
-      if (!ctrl.signal.aborted) onEvent({ type: 'error', message: e instanceof Error ? e.message : String(e) })
+      if (!ctrl.signal.aborted) fail(e instanceof Error ? e.message : String(e))
     }
   })()
   return () => ctrl.abort()

@@ -1,4 +1,4 @@
-import type { Citation, Inspection } from '../api/types'
+import type { AgentSource, Inspection } from '../api/types'
 import { formatDate } from '../lib/format'
 
 // "Paper" renderings of source documents: they look like scans, so they
@@ -32,7 +32,7 @@ export function InspectionPaper({ inspection, compact = false }: { inspection: I
             <tr key={f.item} className="border-b border-neutral-300 last:border-0">
               <td className="w-2/5 bg-neutral-100 px-2 py-1">{f.item}</td>
               <td className="px-2 py-1">
-                <span className={f.flagged && f.item === 'Shaft alignment' ? 'bg-yellow-200 px-1 font-semibold' : ''}>{f.result}</span>
+                <span className={f.flagged && /misalign/i.test(f.result) ? 'bg-yellow-200 px-1 font-semibold' : ''}>{f.result}</span>
               </td>
             </tr>
           ))}
@@ -48,26 +48,21 @@ export function InspectionPaper({ inspection, compact = false }: { inspection: I
   )
 }
 
-/** Excerpt of the cited source, with the quoted line highlighted. */
-export function CitationSource({ citation, inspection }: { citation: Citation; inspection?: Inspection | null }) {
-  if (citation.kind === 'inspection' && inspection) return <InspectionPaper inspection={inspection} compact />
-
+/** A retrieved manual passage (agent `sources` event), rendered like a page excerpt. */
+export function SourcePassage({ source }: { source: AgentSource }) {
   return (
-    <div className="rounded-md border border-neutral-300 bg-white p-3 text-[11px] leading-relaxed text-neutral-900 shadow-sm">
-      <div className="mb-1.5 border-b border-neutral-300 pb-1 font-serif text-xs font-semibold">
-        {citation.kind === 'manual' ? 'Section 7.3 · Mechanical seals' : citation.title}
+    <div className="rounded-md border border-neutral-300 bg-white p-3 text-[12px] leading-relaxed text-neutral-900 shadow-sm">
+      <div className="border-b border-neutral-300 pb-1.5">
+        <div className="font-serif text-[13px] font-semibold">{source.title || source.source}</div>
+        <div className="mt-0.5 text-[11px] text-neutral-500">
+          Page {source.page}
+          {source.section ? ` · ${source.section}` : ''}
+        </div>
       </div>
-      {citation.kind === 'manual' && (
-        <p className="text-neutral-600">
-          Mechanical seals rely on flat, evenly loaded faces. Check alignment after any coupling work.
-        </p>
-      )}
-      <p className="mt-1">
-        <mark className="bg-yellow-200 px-0.5 text-neutral-900">{citation.quote}</mark>
+      <p className="mt-2">
+        <mark className="bg-yellow-200 px-0.5 text-neutral-900">{source.snippet}</mark>
       </p>
-      {citation.kind === 'manual' && (
-        <p className="mt-1 text-neutral-600">Recommended tolerance: 0.05 mm (laser alignment).</p>
-      )}
+      <div className="mt-2 font-mono text-[10px] text-neutral-400">{source.source}</div>
     </div>
   )
 }
