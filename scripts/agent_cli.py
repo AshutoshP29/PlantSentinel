@@ -30,11 +30,13 @@ from app.config import get_settings  # noqa: E402
 
 def cmd_check(args: argparse.Namespace) -> int:
     s = get_settings()
-    st = llm.check_ollama([*llm.required_models(), s.vision_model])
+    st = llm.check_ollama()  # chat + embedding models: required by the agent
     if not st.reachable:
         print(f"Ollama NOT reachable at {st.host}: {st.error}")
         return 1
     print(f"Ollama at {st.host}. Installed: {', '.join(st.installed) or '(none)'}")
+    if llm.check_ollama([s.vision_model]).missing:  # used by OCR ingestion, not the agent
+        print(f"Optional (OCR vision) model not installed: {s.vision_model}")
     if st.missing:
         print(f"Missing: {', '.join(st.missing)}")
         if not args.pull:
