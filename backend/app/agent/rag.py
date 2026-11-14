@@ -291,9 +291,14 @@ class ManualStore:
         import chromadb
         from chromadb.config import Settings as ChromaSettings
 
-        client = chromadb.PersistentClient(
-            path=str(s.chroma_dir), settings=ChromaSettings(anonymized_telemetry=False)
-        )
+        chroma_settings = ChromaSettings(anonymized_telemetry=False)
+        if s.chroma_host:
+            # Docker: the `chroma` service on the internal network.
+            client = chromadb.HttpClient(
+                host=s.chroma_host, port=s.chroma_port, settings=chroma_settings
+            )
+        else:
+            client = chromadb.PersistentClient(path=str(s.chroma_dir), settings=chroma_settings)
         collection = client.get_or_create_collection(
             s.chroma_collection, metadata={"hnsw:space": "cosine"}
         )

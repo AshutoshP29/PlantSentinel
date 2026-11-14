@@ -8,6 +8,7 @@
 #       - ./deploy/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 #
 # Build args: VITE_USE_MOCK=false (default) talks to the backend; set it to true to ship demo data.
+# VITE_LIVE=agent,assets,... keeps demo data but makes only those features live (see README).
 
 FROM node:24-alpine AS build
 WORKDIR /app
@@ -15,7 +16,8 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 ARG VITE_USE_MOCK=false
-ENV VITE_USE_MOCK=$VITE_USE_MOCK
+ARG VITE_LIVE=""
+ENV VITE_USE_MOCK=$VITE_USE_MOCK     VITE_LIVE=$VITE_LIVE
 RUN npm run build
 
 FROM nginx:1.27-alpine

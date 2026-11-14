@@ -129,3 +129,37 @@ def test_real_chromadb_roundtrip(tmp_path) -> None:
     hits = store.search("shaft alignment tolerance parallel offset", k=2)
     assert hits and hits[0].section == "7 Shaft alignment"
     assert isinstance(MemoryCollection().count(), int)
+
+
+def test_from_settings_picks_chroma_server_when_host_is_set(monkeypatch) -> None:
+    """CHROMA_HOST set (Docker) -> HttpClient; unset (local) -> embedded PersistentClient."""
+    try:
+        import chromadb
+    except Exception as exc:
+        pytest.skip(f"chromadb not importable here: {exc}")
+    from app import config
+
+    calls: list[tuple[str, dict]] = []
+
+    class FakeClient:
+        def get_or_create_collection(self, *_args, **_kwargs) -> MemoryCollection:
+            return MemoryCollection()
+
+    def fake(kind: str):
+        def make(**kwargs) -> FakeClient:
+            calls.append((kind, kwargs))
+            return FakeClient()
+
+        return make
+
+    monkeypatch.setattr(chromadb, "HttpClient", fake("http"))
+    monkeypatch.setattr(chromadb, "PersistentClient", fake("embedded"))
+
+    ManualStore.from_settings(HashEmbedder())
+    monkeypatch.setenv("CHROMA_HOST", "chroma")
+    monkeypatch.setenv("CHROMA_PORT", "8000")
+    config.get_settings.cache_clear()
+    ManualStore.from_settings(HashEmbedder())
+
+    assert [kind for kind, _ in calls] == ["embedded", "http"]
+    assert calls[1][1]["host"] == "chroma" and calls[1][1]["port"] == 8000
