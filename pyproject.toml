@@ -46,7 +46,13 @@ extend-exclude = ["frontend"]
 select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["app", "check_no_ai_coauthor", "generate_synthetic", "make_demo_scans"]
+known-first-party = [
+    "app",
+    "check_isolation",
+    "check_no_ai_coauthor",
+    "generate_synthetic",
+    "make_demo_scans",
+]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     chroma_dir: Path = REPO_ROOT / "data" / "chroma"
     manuals_dir: Path = REPO_ROOT / "data" / "docs" / "manuals"
     outputs_dir: Path = REPO_ROOT / "outputs"  # generated work orders (.docx)
+    # When set, use a Chroma server (the `chroma` Compose service) instead of the embedded
+    # store in chroma_dir.
+    chroma_host: str | None = None
+    chroma_port: int = 8000
 
     # Privacy: when true, any non-Ollama outbound HTTP must raise (used by offline-check)
     block_egress: bool = False

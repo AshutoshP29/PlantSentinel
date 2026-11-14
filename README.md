@@ -17,8 +17,8 @@ external network calls at runtime.
 - Ollama, with the models pulled:
 
   ```powershell
-  ollama pull qwen2.5:7b-instruct
-  ollama pull qwen2.5vl:7b
+  ollama pull qwen2.5:7b-instruct-q3_K_M
+  ollama pull qwen2.5vl:3b
   ollama pull nomic-embed-text
   # low-VRAM fallback (set LLM_MODEL=qwen2.5:3b-instruct)
   ollama pull qwen2.5:3b-instruct
@@ -46,6 +46,58 @@ commit-message policy check.
 
 Tests never need Ollama or a GPU. Tests that use a real model are marked
 `@pytest.mark.integration` and are skipped by default.
+
+## Run in containers
+
+Four services, defined in `docker-compose.yml`:
+
+| Service | Role | Network |
+|---|---|---|
+| `gateway` | nginx; the only host port (`127.0.0.1:8080`); proxies `/api` to the backend | `plant` + `edge` |
+| `backend` | FastAPI, SQLite, analytics, agent, guard | `plant` |
+| `chroma` | vector store server | `plant` |
+| `ollama` | LLM, vision and embedding models on the GPU | `plant` |
+
+`plant` is an internal-only Docker network, so `backend`, `chroma` and `ollama` have no route
+off the machine. The gateway holds no data and only forwards requests.
+
+Needs an NVIDIA GPU with Docker Desktop on the WSL2 backend. Check GPU passthrough with
+`docker run --rm --gpus all ubuntu nvidia-smi`.
+
+```powershell
+# once: copy the weights your host Ollama already pulled into a Docker volume (about 90 s)
+docker compose --profile setup run --rm model-copy
+# ...or, if they are not on the host, download them instead (needs internet)
+docker compose --profile setup run --rm model-pull
+
+# every time (works offline after the first build)
+docker compose up -d --build
+```
+
+**Quit the host Ollama app before every run** (system tray → Quit, or `ollama stop <model>`).
+If it is holding a model in VRAM, the container falls back to CPU and drops below 1 token/s.
+After asking one question, confirm the container is on the GPU:
+
+```powershell
+docker compose exec ollama ollama ps    # PROCESSOR column should say "100% GPU"
+```
+
+The gateway serves the UI from `frontend/dist`, so build the frontend first
+(`npm run build` in `frontend/`, with `VITE_USE_MOCK=false`). Without it `/api` still works.
+
+Prove the isolation from inside the backend container. The internal services must answer and
+everything outside must be unreachable:
+
+```powershell
+docker compose exec backend python /app/scripts/check_isolation.py
+```
+
+Then open <http://127.0.0.1:8080/api/health>. Set `LLM_MODEL`, `VISION_MODEL` or `EMBED_MODEL`
+in a `.env` file to change models; `EXTRA_MODELS` adds more to the pull. Build the backend with
+`--build-arg UV_EXTRAS="--extra ocr"` to include PaddleOCR.
+
+Running without Docker still works: with `CHROMA_HOST` unset the backend uses the embedded
+Chroma store, and `OLLAMA_HOST` defaults to Ollama on the host.
 
 ## Data
 
