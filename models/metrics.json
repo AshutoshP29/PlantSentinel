@@ -1,0 +1,14 @@
+{
+  "clustering": {
+    "ari_vs_truth": 0.9338,
+    "homogeneity_vs_truth": 0.9586,
+    "merge_distance": 0.12,
+    "min_cluster_size": 8,
+    "n_clusters": 19,
+    "n_failure_modes": 15,
+    "n_true_modes": 14,
+    "n_work_orders": 491,
+    "noise_fraction": 0.0041,
+    "silhouette": 0.6346
+  }
+}
