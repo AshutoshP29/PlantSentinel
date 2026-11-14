@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     # End of the analysis window (env ANALYSIS_AS_OF=2026-11-14). None = latest work-order
     # date in the DB, so the planted stories don't age out of the 180-day window.
     analysis_as_of: date | None = None
+    site_name: str = "Demo Refinery"  # shown on the dashboard
 
     # Storage
     data_dir: Path = REPO_ROOT / "data"
