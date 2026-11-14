@@ -342,6 +342,33 @@ def _event(kind: str, /, **data: Any) -> dict:
     return {"type": kind, "data": data}
 
 
+TOOL_CITATION_RE = re.compile(r"\s?\[([a-z_]+(?:\s*,\s*[^\]]+)*)\]")
+
+
+def fix_tool_citations(text: str, ctx: AgentContext) -> str:
+    """Small models sometimes cite the tool instead of the evidence: [read_inspection].
+
+    Replace that with the inspection ids actually read in this run ([INSP-004]) and drop
+    other tool names, keeping any real refs in the same bracket. Text without tool-name
+    citations is returned unchanged.
+    """
+    tool_names = {name for name, *_ in TOOL_SPECS}
+    inspection_ids = sorted(ctx.inspections)
+
+    def repl(m: re.Match[str]) -> str:
+        parts = [p.strip() for p in m.group(1).split(",")]
+        if not any(p in tool_names for p in parts):
+            return m.group(0)
+        out: list[str] = []
+        for p in parts:
+            new = inspection_ids if p == "read_inspection" else [] if p in tool_names else [p]
+            out += [x for x in new if x not in out]
+        lead = " " if m.group(0).startswith(" ") else ""
+        return f"{lead}[{', '.join(out)}]" if out else ""
+
+    return TOOL_CITATION_RE.sub(repl, text)
+
+
 def cited_refs(text: str) -> list[str]:
     """Refs in brackets, in order of first appearance: S1, INSP-..., WO-...."""
     refs: list[str] = []
@@ -473,7 +500,7 @@ async def stream_agent(
                         yield _event("document", **doc)
                     yield _event("status", stage="reasoning", message="Reviewing tool results")
                 elif node in STREAM_NODES and msgs:
-                    text = str(msgs[-1].content).strip()
+                    text = fix_tool_citations(str(msgs[-1].content).strip(), ctx)
                     refs = cited_refs(text)
                     known = known_refs(ctx)
                     answered = True
