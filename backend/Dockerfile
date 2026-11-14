@@ -5,6 +5,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
+    UV_HTTP_TIMEOUT=300 \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
@@ -19,6 +20,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev ${UV_EXTRAS}
 
 COPY backend ./backend
+# Seeding, training and the isolation check run inside the container too.
+COPY scripts ./scripts
 
 WORKDIR /app/backend
 EXPOSE 8000

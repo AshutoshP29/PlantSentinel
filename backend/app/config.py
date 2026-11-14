@@ -13,8 +13,9 @@ class Settings(BaseSettings):
 
     # Ollama (runs on the host; from Docker use http://host.docker.internal:11434)
     ollama_host: str = "http://localhost:11434"
-    llm_model: str = "qwen2.5:7b-instruct"
-    vision_model: str = "qwen2.5vl:7b"
+    # Sized for a 6 GB card: the q3 LLM and the embedder stay loaded together.
+    llm_model: str = "qwen2.5:7b-instruct-q3_K_M"
+    vision_model: str = "qwen2.5vl:3b"
     embed_model: str = "nomic-embed-text"
 
     # Storage

@@ -17,8 +17,8 @@ external network calls at runtime.
 - Ollama, with the models pulled:
 
   ```powershell
-  ollama pull qwen2.5:7b-instruct
-  ollama pull qwen2.5vl:7b
+  ollama pull qwen2.5:7b-instruct-q3_K_M
+  ollama pull qwen2.5vl:3b
   ollama pull nomic-embed-text
   # low-VRAM fallback (set LLM_MODEL=qwen2.5:3b-instruct)
   ollama pull qwen2.5:3b-instruct
@@ -67,7 +67,7 @@ Needs an NVIDIA GPU with Docker Desktop on the WSL2 backend. Check GPU passthrou
 ```powershell
 # once: copy the weights your host Ollama already pulled into a Docker volume (about 90 s)
 docker compose --profile setup run --rm model-copy
-# ...or, if they are not on the host, download them instead (about 11 GB, needs internet)
+# ...or, if they are not on the host, download them instead (needs internet)
 docker compose --profile setup run --rm model-pull
 
 # every time (works offline after the first build)
@@ -80,6 +80,16 @@ After asking one question, confirm the container is on the GPU:
 
 ```powershell
 docker compose exec ollama ollama ps    # PROCESSOR column should say "100% GPU"
+```
+
+The gateway serves the UI from `frontend/dist`, so build the frontend first
+(`npm run build` in `frontend/`, with `VITE_USE_MOCK=false`). Without it `/api` still works.
+
+Prove the isolation from inside the backend container. The internal services must answer and
+everything outside must be unreachable:
+
+```powershell
+docker compose exec backend python /app/scripts/check_isolation.py
 ```
 
 Then open <http://127.0.0.1:8080/api/health>. Set `LLM_MODEL`, `VISION_MODEL` or `EMBED_MODEL`

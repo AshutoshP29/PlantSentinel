@@ -11,8 +11,13 @@
 #   docker compose --profile setup run --rm model-pull   # download, needs internet
 # Then:
 #   docker compose up -d --build
+# Prove the isolation:
+#   docker compose exec backend python /app/scripts/check_isolation.py
 
 name: plantsentinel
+
+# Pinned: the version GPU passthrough and isolation were tested with.
+x-ollama-image: &ollama-image ollama/ollama:0.40.16
 
 services:
   gateway:
@@ -21,6 +26,8 @@ services:
       - "127.0.0.1:8080:80"
     volumes:
       - ./deploy/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # The UI: run `npm run build` in frontend/ (with VITE_USE_MOCK=false) first.
+      - ./frontend/dist:/usr/share/nginx/html:ro
     networks: [plant, edge]
     depends_on:
       backend:
@@ -36,8 +43,8 @@ services:
       CHROMA_HOST: chroma
       CHROMA_PORT: "8000"
       DB_PATH: /app/state/plantsentinel.db
-      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct}
-      VISION_MODEL: ${VISION_MODEL:-qwen2.5vl:7b}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct-q3_K_M}
+      VISION_MODEL: ${VISION_MODEL:-qwen2.5vl:3b}
       EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
       BLOCK_EGRESS: "true"
       ANONYMIZED_TELEMETRY: "False"
@@ -73,11 +80,15 @@ services:
     restart: unless-stopped
 
   ollama:
-    image: ollama/ollama:latest
+    image: *ollama-image
     gpus: all
     environment:
       OLLAMA_KEEP_ALIVE: 30m          # don't unload the model between demo questions
       OLLAMA_MAX_LOADED_MODELS: "2"   # LLM + embedder; the vision model swaps in at ingest
+      # Fit a 6 GB card: one request at a time, cheaper attention and a quantised KV cache.
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_FLASH_ATTENTION: "1"
+      OLLAMA_KV_CACHE_TYPE: q8_0
     volumes:
       - ollama_models:/root/.ollama
     networks: [plant]
@@ -94,7 +105,7 @@ services:
   # Override the source with OLLAMA_MODELS_SRC if your models live elsewhere.
   model-copy:
     profiles: [setup]
-    image: ollama/ollama:latest
+    image: *ollama-image
     network_mode: none
     volumes:
       - ${OLLAMA_MODELS_SRC:-${USERPROFILE:-${HOME}}/.ollama/models}:/src:ro
@@ -111,7 +122,7 @@ services:
   # Use this only if the models are not already on the host.
   model-pull:
     profiles: [setup]
-    image: ollama/ollama:latest
+    image: *ollama-image
     volumes:
       - ollama_models:/root/.ollama
     networks: [edge]
@@ -120,7 +131,7 @@ services:
       - |
         ollama serve &
         until ollama list >/dev/null 2>&1; do sleep 1; done
-        for m in ${LLM_MODEL:-qwen2.5:7b-instruct} ${VISION_MODEL:-qwen2.5vl:7b} ${EMBED_MODEL:-nomic-embed-text} ${EXTRA_MODELS:-}; do
+        for m in ${LLM_MODEL:-qwen2.5:7b-instruct-q3_K_M} ${VISION_MODEL:-qwen2.5vl:3b} ${EMBED_MODEL:-nomic-embed-text} ${EXTRA_MODELS:-}; do
           ollama pull "$$m" || exit 1
         done
         ollama list
