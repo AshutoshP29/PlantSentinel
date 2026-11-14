@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from app.config import get_settings
@@ -24,8 +25,10 @@ RENAME = {
 }
 
 NUMERIC_FEATURES = ["air_temp_k", "process_temp_k", "rpm", "torque_nm", "tool_wear_min"]
+# Physically meaningful combinations of the raw sensors (heat dissipation, power, overstrain).
+ENGINEERED_FEATURES = ["temp_diff_k", "power_kw", "strain_nm_min"]
 TYPE_CODES = {"L": 0, "M": 1, "H": 2}
-FEATURES = [*NUMERIC_FEATURES, "type_code"]
+FEATURES = [*NUMERIC_FEATURES, *ENGINEERED_FEATURES, "type_code"]
 TARGET = "failure"
 # Failure sub-type flags: they leak the target, never use them as features.
 LEAKY = ["twf", "hdf", "pwf", "osf", "rnf"]
@@ -35,9 +38,23 @@ FEATURE_LABELS = {
     "process_temp_k": "Process temperature",
     "rpm": "Rotational speed",
     "torque_nm": "Torque",
-    "tool_wear_min": "Tool / component wear",
-    "type_code": "Product quality grade",
+    "tool_wear_min": "Component wear time",
+    "temp_diff_k": "Heat-dissipation margin (process - air temp)",
+    "power_kw": "Mechanical power",
+    "strain_nm_min": "Overstrain (torque x wear)",
+    "type_code": "Duty class",
 }
+
+
+def add_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Add engineered features and `type_code` from raw columns (works on 1-row frames too)."""
+    out = df.copy()
+    out["temp_diff_k"] = out["process_temp_k"] - out["air_temp_k"]
+    out["power_kw"] = out["torque_nm"] * out["rpm"] * 2 * np.pi / 60 / 1000
+    out["strain_nm_min"] = out["torque_nm"] * out["tool_wear_min"]
+    if "type_code" not in out:
+        out["type_code"] = out["type"].map(TYPE_CODES).astype(int)
+    return out
 
 
 def default_path() -> Path:
@@ -59,6 +76,5 @@ def load_ai4i(path: Path | None = None) -> pd.DataFrame:
     unknown = set(df["type"]) - set(TYPE_CODES)
     if unknown:
         raise ValueError(f"Unknown product types: {sorted(unknown)}")
-    df["type_code"] = df["type"].map(TYPE_CODES).astype(int)
     df[TARGET] = df[TARGET].astype(int)
-    return df
+    return add_features(df)
