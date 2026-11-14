@@ -232,3 +232,15 @@ def test_metrics_merge(tmp_path: Path) -> None:
     write_metrics("risk_model", {"f1": 0.8}, p)
     write_metrics("clustering", {"silhouette": 0.6}, p)
     assert read_metrics(p) == {"risk_model": {"f1": 0.8}, "clustering": {"silhouette": 0.6}}
+
+
+def test_naming_chat_uses_naming_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app import config, ollama_client
+
+    seen: list[str | None] = []
+    monkeypatch.setattr(ollama_client, "chat_json", lambda p, model=None: seen.append(model) or {})
+    cluster.naming_chat("x")
+    monkeypatch.setenv("NAMING_MODEL", "qwen2.5:7b-instruct")
+    config.get_settings.cache_clear()
+    cluster.naming_chat("x")
+    assert seen == [None, "qwen2.5:7b-instruct"]

@@ -12,7 +12,7 @@ Definitions (window = 180 days ending at `as_of`, default = latest work-order da
 
 import re
 import sqlite3
-from datetime import timedelta
+from datetime import date, timedelta
 
 import pandas as pd
 
@@ -119,13 +119,29 @@ def load_frames(conn: sqlite3.Connection) -> tuple[pd.DataFrame, pd.DataFrame]:
     return wo, assets
 
 
+def _records(df: pd.DataFrame) -> list[dict]:
+    """DataFrame -> JSON-safe dicts (NaN -> None)."""
+    return df.astype(object).where(df.notna(), None).to_dict(orient="records")
+
+
+def score_bad_actors(
+    conn: sqlite3.Connection, as_of: str | date | pd.Timestamp | None = None
+) -> list[dict]:
+    """Score every (asset, failure mode) pair from the DB, best-first.
+
+    `as_of` ends the 180-day window (ISO string, date or Timestamp); None = latest work order.
+    Each dict has the keys in COLUMNS. Routine / unclassified work is excluded.
+    """
+    wo, assets = load_frames(conn)
+    ts = None if as_of is None else pd.Timestamp(as_of)
+    return _records(compute_bad_actors(wo, assets, as_of=ts))
+
+
 def get_bad_actors(
     conn: sqlite3.Connection, top_n: int = 10, flagged_only: bool = False
 ) -> list[dict]:
-    """Ranked bad actors as plain dicts (used by the API and the agent tool)."""
-    wo, assets = load_frames(conn)
-    df = compute_bad_actors(wo, assets)
+    """Top-n ranked bad actors as plain dicts (used by the API and the agent tool)."""
+    rows = score_bad_actors(conn)
     if flagged_only:
-        df = df[df["flagged"]]
-    df = df.head(top_n).astype(object).where(df.head(top_n).notna(), None)
-    return df.to_dict(orient="records")
+        rows = [r for r in rows if r["flagged"]]
+    return rows[:top_n]

@@ -154,6 +154,11 @@ def _representative_samples(texts: list[str], x: np.ndarray, k: int = 5) -> list
     return seen
 
 
+def naming_chat(prompt: str) -> dict:
+    """JSON chat with the naming model (NAMING_MODEL, falling back to LLM_MODEL)."""
+    return ollama_client.chat_json(prompt, model=get_settings().naming_model or None)
+
+
 def cluster_work_orders(
     df: pd.DataFrame,
     embed_fn: EmbedFn | None = None,
@@ -163,7 +168,7 @@ def cluster_work_orders(
     merge_distance: float = 0.12,
 ) -> ClusterResult:
     """Cluster work orders (columns: id, description) into named failure modes."""
-    chat_fn = chat_fn or ollama_client.chat_json
+    chat_fn = chat_fn or naming_chat
     texts = [clean_text(d) for d in df["description"]]
     x = embed_texts(texts, embed_fn=embed_fn, cache_path=cache_path)
     labels = cluster_embeddings(x, min_cluster_size, merge_distance)
