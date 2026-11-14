@@ -125,23 +125,30 @@ def _records(df: pd.DataFrame) -> list[dict]:
 
 
 def score_bad_actors(
-    conn: sqlite3.Connection, as_of: str | date | pd.Timestamp | None = None
+    conn: sqlite3.Connection,
+    as_of: str | date | pd.Timestamp | None = None,
+    window_days: int = WINDOW_DAYS,
 ) -> list[dict]:
     """Score every (asset, failure mode) pair from the DB, best-first.
 
-    `as_of` ends the 180-day window (ISO string, date or Timestamp); None = latest work order.
-    Each dict has the keys in COLUMNS. Routine / unclassified work is excluded.
+    `as_of` ends the window (ISO string, date or Timestamp); None = latest work order.
+    Each dict has the keys in COLUMNS (`count_180d` holds the count for `window_days`, the
+    name is kept for API stability). Routine / unclassified work is excluded.
     """
     wo, assets = load_frames(conn)
     ts = None if as_of is None else pd.Timestamp(as_of)
-    return _records(compute_bad_actors(wo, assets, as_of=ts))
+    return _records(compute_bad_actors(wo, assets, as_of=ts, window_days=window_days))
 
 
 def get_bad_actors(
-    conn: sqlite3.Connection, top_n: int = 10, flagged_only: bool = False
+    conn: sqlite3.Connection,
+    top_n: int = 10,
+    flagged_only: bool = False,
+    window_days: int = WINDOW_DAYS,
+    as_of: str | date | pd.Timestamp | None = None,
 ) -> list[dict]:
     """Top-n ranked bad actors as plain dicts (used by the API and the agent tool)."""
-    rows = score_bad_actors(conn)
+    rows = score_bad_actors(conn, as_of, window_days)
     if flagged_only:
         rows = [r for r in rows if r["flagged"]]
     return rows[:top_n]

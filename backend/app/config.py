@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     rag_max_distance: float = 0.6  # cosine distance; weaker matches are dropped as irrelevant
     analysis_window_days: int = 180  # "recent" window for failure counts (bad-actor window)
     analysis_as_of: date | None = None  # pin "today" for analytics (demo); None = real date
+    site_name: str = "Demo Refinery"  # shown on the dashboard
 
     # Storage
     data_dir: Path = REPO_ROOT / "data"
