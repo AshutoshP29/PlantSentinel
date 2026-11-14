@@ -67,9 +67,9 @@ def failure_patterns(
     `keywords` filters work-order text (case-insensitive, any match), e.g. ["seal"]. This is a
     query, not a classifier: the matched work orders are listed so the result is checkable.
     """
-    start = data.window_start(window_days)
+    start = data.window_start(conn, window_days)
     rows = data.work_orders(conn, tag)
-    out: dict = {"tag": tag, "as_of": data.as_of_date().isoformat(), "window_start": str(start)}
+    out: dict = {"tag": tag, "as_of": data.as_of_date(conn).isoformat(), "window_start": str(start)}
     if not rows:
         return {**out, "events": 0, "note": "no work orders recorded for this asset"}
 
@@ -106,7 +106,7 @@ def _model_bad_actors(conn: sqlite3.Connection) -> list[dict] | None:
     if fn is None:
         return None
     try:
-        ranked = list(fn(conn, data.as_of_date()))
+        ranked = list(fn(conn, data.as_of_date(conn)))
     except Exception:
         log.exception("app.analytics.bad_actors.score_bad_actors failed; using fallback")
         return None
@@ -120,7 +120,7 @@ def bad_actors(conn: sqlite3.Connection, top_n: int = 5, tag: str | None = None)
     if ranked is not None:
         method = "bad-actor model (app.analytics.bad_actors)"
     else:
-        start = data.window_start()
+        start = data.window_start(conn)
         ranked = data.asset_totals(conn, start)
         method = f"{PRELIMINARY}; ranked by downtime since {start}, not a bad-actor score"
     out: dict = {"method": method, "top": ranked[:top_n]}

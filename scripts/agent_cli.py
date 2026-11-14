@@ -4,6 +4,7 @@
     uv run python scripts/agent_cli.py ingest [--dir DIR] # index manuals into ChromaDB
     uv run python scripts/agent_cli.py search "query"     # test retrieval
     uv run python scripts/agent_cli.py ask "question" [--demo-db]
+    uv run python scripts/agent_cli.py inspect-scans [--dir DIR] [--force]  # seeding step
 
 --demo-db loads data/synthetic/*.csv into a temporary SQLite file for the run, so the agent can
 be tried before the application database is seeded. It never touches the app database.
@@ -122,8 +123,12 @@ def cmd_ask(args: argparse.Namespace) -> int:
             elif t == "sources":
                 for src in d["sources"]:
                     print(f"   {src['ref']}: {src['title']} p.{src['page']} ({src['score']})")
-            elif t == "work_order":
-                print(f"   work order: {d['file']}")
+            elif t == "blocked":
+                print(
+                    f"   BLOCKED {d['tool']} -> {d['target']} ({d['reason']}; from {d['source']})"
+                )
+            elif t == "document":
+                print(f"   document: {d['file_name']}  {d['download_url']}")
             elif t == "answer":
                 print(f"\n{d['text']}\n")
             elif t in ("error", "done"):
@@ -131,6 +136,26 @@ def cmd_ask(args: argparse.Namespace) -> int:
 
     asyncio.run(run())
     return 0
+
+
+def cmd_inspect_scans(args: argparse.Namespace) -> int:
+    """Seeding step: read data/scans/* with the vision model into the inspections table."""
+    from app.agent.inspections import ingest_scans
+    from app.db import connect, init_db
+
+    s = get_settings()
+    llm.require_ollama([s.vision_model])
+    conn = connect(s.db_path)
+    init_db(conn)
+    try:
+        reports = ingest_scans(conn, Path(args.dir) if args.dir else None, force=args.force)
+    finally:
+        conn.close()
+    for r in reports:
+        print(f"  {r.status:8} {r.inspection_id or '-':24} {r.file}  {r.detail}")
+    if not reports:
+        print(f"No scans found in {args.dir or s.scans_dir}")
+    return 1 if any(r.status == "failed" for r in reports) else 0
 
 
 def main() -> int:
@@ -147,10 +172,18 @@ def main() -> int:
     a = sub.add_parser("ask")
     a.add_argument("question")
     a.add_argument("--demo-db", action="store_true")
+    sc = sub.add_parser("inspect-scans", help="seeding: scans -> inspections table (slow)")
+    sc.add_argument("--dir")
+    sc.add_argument("--force", action="store_true", help="re-read scans already in the DB")
     args = p.parse_args()
-    return {"check": cmd_check, "ingest": cmd_ingest, "search": cmd_search, "ask": cmd_ask}[
-        args.cmd
-    ](args)
+    commands = {
+        "check": cmd_check,
+        "ingest": cmd_ingest,
+        "search": cmd_search,
+        "ask": cmd_ask,
+        "inspect-scans": cmd_inspect_scans,
+    }
+    return commands[args.cmd](args)
 
 
 if __name__ == "__main__":

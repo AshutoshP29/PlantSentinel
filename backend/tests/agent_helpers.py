@@ -145,3 +145,51 @@ def make_context(
         llm_factory=llm_factory or no_llm,
         outputs_dir=tmp_path / "outputs",
     )
+
+
+P101_INSPECTION = {
+    "tag": "P-101",
+    "date": "2026-11-02",
+    "inspector": "R. Iyer",
+    "report_no": "IR-2026-118",
+    "findings": [
+        {
+            "item": "Mechanical seal",
+            "result": "Leakage at gland, 20 drops/min",
+            "flagged": True,
+            "page": 1,
+        },
+        {
+            "item": "Coupling alignment",
+            "result": "Misalignment observed: 0.3 mm",
+            "flagged": True,
+            "page": 2,
+        },
+        {"item": "Bearing housing temperature", "result": "68 degC", "flagged": False, "page": 2},
+    ],
+    "summary": "Seal leaking; coupling misaligned.",
+    "pages": 2,
+    "file_name": "P-101_inspection.pdf",
+}
+
+
+def add_inspection(conn: sqlite3.Connection, extract: dict | None = None) -> str:
+    """Insert an inspection row like the scan pipeline would. Returns its id."""
+    import json
+
+    ex = extract or P101_INSPECTION
+    iid = f"INSP-{ex['tag'].replace('-', '')}-{ex['date'].replace('-', '')}"
+    conn.execute(
+        "INSERT INTO inspections(id, tag, date, file_path, raw_text, extracted_json) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            iid,
+            ex["tag"],
+            ex["date"],
+            f"data/scans/{ex['file_name']}",
+            "[page 1]\nSeal leakage at gland\n\n[page 2]\nMisalignment observed: 0.3 mm",
+            json.dumps(ex),
+        ),
+    )
+    conn.commit()
+    return iid

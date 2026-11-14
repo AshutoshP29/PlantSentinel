@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import agent, health
+from app.api import agent, documents, health, inspections
 from app.config import get_settings
 from app.db import connect, init_db
 
@@ -19,3 +19,5 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="PlantSentinel", lifespan=lifespan)
 app.include_router(health.router, prefix="/api")
 app.include_router(agent.router, prefix="/api")
+app.include_router(documents.router, prefix="/api")
+app.include_router(inspections.router, prefix="/api")

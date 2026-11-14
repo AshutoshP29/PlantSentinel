@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 Priority = Literal["Emergency", "High", "Medium", "Low"]
 
@@ -27,22 +27,36 @@ class TagInput(BaseModel):
     tag: str = Field(description="Equipment tag, e.g. P-101.")
 
 
-class HistoryInput(TagInput):
-    days: int | None = Field(
-        None, ge=1, le=3650, description="Only work orders from the last N days. Omit for all."
-    )
-    limit: int = Field(25, ge=1, le=100, description="Maximum work orders to return.")
-
-
-class PatternInput(TagInput):
+class AssetHistoryInput(TagInput):
     keywords: list[str] | None = Field(
         None,
-        description="Optional words to filter work orders by, e.g. ['seal'] or "
-        "['overheat', 'temp']. Leave empty to analyse all work orders.",
+        description="Optional words to focus the failure statistics on, e.g. ['seal'] or "
+        "['overheat', 'temp']. Leave empty for all work orders.",
     )
     window_days: int | None = Field(
         None, ge=30, le=1095, description="Recent window in days (default 180)."
     )
+    limit: int = Field(15, ge=1, le=100, description="How many recent work orders to list.")
+
+
+class InspectionInput(BaseModel):
+    tag: str | None = Field(None, description="Equipment tag: returns its latest inspection.")
+    inspection_id: str | None = Field(
+        None, description="A specific inspection id, e.g. INSP-P101-20261102."
+    )
+
+    @model_validator(mode="after")
+    def _one_of(self) -> InspectionInput:
+        if not (self.tag or self.inspection_id):
+            raise ValueError("give a tag or an inspection_id")
+        return self
+
+
+class ExportReportInput(BaseModel):
+    type: Literal["bad_actors"] = Field(
+        "bad_actors", description="Report type. Only 'bad_actors' (.xlsx) is available."
+    )
+    top_n: int = Field(20, ge=1, le=100)
 
 
 class BadActorInput(BaseModel):
