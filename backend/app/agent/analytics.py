@@ -106,10 +106,12 @@ def _model_bad_actors(conn: sqlite3.Connection) -> list[dict] | None:
     if fn is None:
         return None
     try:
-        return list(fn(conn, data.as_of_date()))
+        ranked = list(fn(conn, data.as_of_date()))
     except Exception:
         log.exception("app.analytics.bad_actors.score_bad_actors failed; using fallback")
         return None
+    # Empty = no work order has a failure mode yet (clustering not run): use the fallback.
+    return ranked or None
 
 
 def bad_actors(conn: sqlite3.Connection, top_n: int = 5, tag: str | None = None) -> dict:
