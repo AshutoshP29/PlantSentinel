@@ -7,10 +7,20 @@ const POLL_MS = 2000
 
 /** Live network status, polled every 2 seconds. */
 export function usePrivacyStatus(): PrivacyStatus | null {
+  return usePrivacyFeed().status
+}
+
+/** Status plus whether the last poll failed (endpoint missing or backend down). */
+export function usePrivacyFeed(): { status: PrivacyStatus | null; failed: boolean } {
   const [status, setStatus] = useState<PrivacyStatus | null>(null)
+  const [failed, setFailed] = useState(false)
   useEffect(() => {
     let alive = true
-    const load = () => api.getPrivacyStatus().then((s) => alive && setStatus(s)).catch(() => {})
+    const load = () =>
+      api
+        .getPrivacyStatus()
+        .then((s) => alive && (setStatus(s), setFailed(false)))
+        .catch(() => alive && setFailed(true))
     load()
     const t = window.setInterval(load, POLL_MS)
     return () => {
@@ -18,7 +28,7 @@ export function usePrivacyStatus(): PrivacyStatus | null {
       clearInterval(t)
     }
   }, [])
-  return status
+  return { status, failed }
 }
 
 /**

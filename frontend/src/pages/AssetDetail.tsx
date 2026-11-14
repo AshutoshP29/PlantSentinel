@@ -321,7 +321,7 @@ function DetailView({
       </div>
 
       {d.latest_inspection && (
-        <Modal open={scanOpen} onClose={() => setScanOpen(false)} title={`${d.latest_inspection.report_no} · ${asset.tag}`}>
+        <Modal open={scanOpen} onClose={() => setScanOpen(false)} title={`${d.latest_inspection.report_no || d.latest_inspection.id} · ${asset.tag}`}>
           <InspectionPaper inspection={d.latest_inspection} />
         </Modal>
       )}

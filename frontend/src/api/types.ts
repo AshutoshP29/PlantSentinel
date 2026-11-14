@@ -230,6 +230,8 @@ export interface Inspection {
   pages: number
   findings: InspectionFinding[]
   file_path: string
+  /** one-line summary from the OCR pipeline (backend inspections.to_api) */
+  summary?: string
 }
 
 export interface AssetDetail {
@@ -288,43 +290,36 @@ export interface ClusterRun {
 
 // ---------- Agent ----------
 
-// Mirrors backend/app/agent/graph.py EVENT_TYPES and backend/app/api/agent.py exactly.
-// POST /api/agent/chat {message, history} streams named SSE events: `event: <type>`,
-// `data: <json payload>`.
+// POST /api/agent/ask {question, tag, history} — the frontend contract, produced by
+// backend/app/agent/frontend_events.py (FrontendStream). Server-sent events, one JSON
+// object per `data:` line. Citations are renumbered [1], [2] … in order of appearance.
 
-/** One retrieved manual passage; the answer cites it as [S1], [S2] … */
-export interface AgentSource {
-  ref: string // "S1"
-  title: string
-  source: string // file name, e.g. "centrifugal_pump_om_manual.md"
-  page: number
-  section: string
-  score: number
-  snippet: string
+export type AgentStepStatus = 'running' | 'done' | 'blocked' | 'error'
+
+export interface AgentStep {
+  id: string // tool call id
+  tool: string
+  summary: string // arguments while running, the tool's result summary when done
+  status: AgentStepStatus
+  duration_ms?: number
 }
 
-export interface AgentWorkOrder {
-  work_order_id: string
-  tag: string
-  priority: string
-  file: string
-  download_url: string // e.g. /api/agent/work-orders/<file>.docx
+export interface Citation {
+  id: number // the [n] used in the answer text
+  kind: 'manual' | 'inspection' | 'work_orders'
+  label: string // e.g. "Manual · p. 5"
+  title: string // e.g. "CP-200 … Manual · page 5 · 5.1 Mechanical seal leakage"
+  quote: string
 }
 
-export type AgentStreamEvent =
-  | { type: 'run_started'; data: { run_id: string; question: string } }
-  | { type: 'status'; data: { stage: string; message: string } }
-  | { type: 'tool_started'; data: { call_id: string; tool: string; args: Record<string, unknown> } }
-  | { type: 'tool_completed'; data: { call_id: string; tool: string; status: string; summary: string } }
-  | { type: 'sources'; data: { sources: AgentSource[] } }
-  | { type: 'work_order'; data: AgentWorkOrder }
-  | { type: 'answer'; data: { text: string; cited_refs: string[]; unknown_refs: string[]; work_orders: AgentWorkOrder[] } }
-  | { type: 'error'; data: { message: string } }
-  | { type: 'done'; data: { run_id: string; iterations: number; elapsed_s: number } }
+export type AgentEvent =
+  | { type: 'step'; step: AgentStep }
+  | { type: 'token'; text: string }
+  | { type: 'done'; citations: Citation[]; can_draft_work_order: boolean }
+  | { type: 'blocked'; attempt: BlockedAttempt }
+  | { type: 'error'; message: string }
 
-export type AgentEventType = AgentStreamEvent['type']
-
-/** One prior turn, sent as `history` with the next message (max 20). */
+/** One prior turn, sent as `history` with the next question (max 20). */
 export interface ChatTurn {
   role: 'user' | 'assistant'
   content: string
@@ -338,20 +333,6 @@ export interface AgentStatus {
   ready: boolean
 }
 
-// ----- screen-side agent types -----
-
-export type AgentStepStatus = 'running' | 'done' | 'blocked' | 'error'
-
-export interface AgentStep {
-  id: string // call_id
-  tool: string
-  args: Record<string, unknown>
-  summary: string
-  status: AgentStepStatus
-  started_at: number
-  duration_ms?: number
-}
-
 // ---------- Documents ----------
 
 export type DocKind = 'work_order' | 'bad_actor_report'
@@ -360,7 +341,7 @@ export interface WorkOrderDraft {
   wo_number: string
   tag: string
   asset_name: string
-  priority: 'High' | 'Medium' | 'Low'
+  priority: string // High | Medium | Low (the backend may send others)
   problem: string
   suspected_cause: string
   recommended_steps: string
@@ -381,6 +362,8 @@ export interface DocumentItem {
   created_by: string
   created_at: string // ISO datetime
   work_order?: WorkOrderDraft
+  /** returned on create: /api/documents/{id}/download */
+  download_url?: string
 }
 
 // ---------- Privacy ----------

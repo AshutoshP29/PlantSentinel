@@ -2,7 +2,7 @@ import type { BadActorStatus, Criticality } from '../api/types'
 
 export type Tone = 'neutral' | 'accent' | 'critical' | 'warning' | 'good'
 
-export function criticalityTone(c: Criticality): Tone {
+export function criticalityTone(c: Criticality | string): Tone {
   return c === 'High' ? 'critical' : c === 'Medium' ? 'warning' : 'neutral'
 }
 
