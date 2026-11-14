@@ -1,198 +1,240 @@
 # PlantSentinel
 
-Your plant's failure history, read by an AI that never leaves the building. It finds recurring
-failures, explains the root cause from your own manuals, and drafts the work order.
+**Your plant's failure history, read by an AI that never leaves the building.**
 
-Everything runs locally: models are served by Ollama on the host, and the app makes no
-external network calls at runtime.
+PlantSentinel reads years of messy maintenance records, scanned inspection reports and equipment
+manuals. It finds the equipment that keeps failing, explains the root cause from the plant's own
+documents, and drafts the work order. Everything runs on one laptop: the models, the data and
+the app. It shows on screen that nothing leaves the machine.
 
-> Status: step 1 of the build (repo skeleton, tooling, CI). Setup, seeding, running and the
-> demo script will be added as the build progresses.
+> **Status:** the full demo runs end to end on the demo laptop (RTX 4050, 6 GB) **with Wi-Fi
+> off**: `.\make.ps1 offline-check` reports `ISOLATED` and `DEMO READY`.
 
-## Prerequisites (Windows)
+## What it does
 
-- [uv](https://docs.astral.sh/uv/) (manages Python 3.12; don't use system Python)
-- Node.js LTS (frontend)
-- Docker Desktop
-- Ollama, with the models pulled:
-
-  ```powershell
-  # defaults in backend/app/config.py (sized for a 6 GB GPU)
-  ollama pull qwen2.5:7b-instruct-q3_K_M   # chat / agent (LLM_MODEL)
-  ollama pull qwen2.5vl:3b                 # scanned inspections (VISION_MODEL)
-  ollama pull nomic-embed-text             # embeddings (EMBED_MODEL)
-  ollama pull qwen2.5:3b-instruct          # faster fallback (set LLM_MODEL=qwen2.5:3b-instruct)
-  # 8+ GB GPU: qwen2.5:7b-instruct and qwen2.5vl:7b
-  ```
-
-## Setup
-
-```powershell
-uv sync --group dev                 # add --extra ocr for PaddleOCR (large download)
-uv run pre-commit install --hook-type pre-commit --hook-type commit-msg
-```
-
-Or run `.\make.ps1 setup`. On Linux/macOS use `make setup`.
-
-**Every teammate must run the `pre-commit install` line.** It enables ruff on commit and the
-commit-message policy check.
-
-## Lint and test
-
-```powershell
-.\make.ps1 lint     # ruff check + ruff format --check
-.\make.ps1 test     # pytest, integration tests skipped
-.\make.ps1 format   # auto-fix
-```
-
-Tests never need Ollama or a GPU. Tests that use a real model are marked
-`@pytest.mark.integration` and are skipped by default.
-
-## Seed the demo data
-
-One command loads everything the demo needs into a fresh database (about 15 s; safe to re-run):
-
-```powershell
-.\make.ps1 seed                      # or: uv run python scripts/seed_demo.py --reset
-.\make.ps1 seed --cluster live       # re-cluster with Ollama instead of the saved clusters (~80 s)
-```
-
-Inside the Compose stack: `docker compose run --rm backend python /app/scripts/seed_demo.py --reset`.
-
-| Step | What it does | Needs Ollama |
+| | Feature | How |
 |---|---|---|
-| data, scans | uses the committed synthetic CSVs and inspection images (regenerates if missing) | no |
-| database | schema, equipment register, 491 work orders | no |
-| clustering | failure modes from `clusters_fallback.json` (`--cluster live` to recompute) | live only |
-| risk model | trains XGBoost on AI4I if `models/risk_xgb.json` is missing (~10 s) | no |
-| manuals | indexes `data/docs/manuals` into ChromaDB | yes (warns if not) |
-| inspections | OCR of `data/scans` into `inspections` (once the pipeline exists) | yes (warns if not) |
-| verify | checks the planted story: P-101, C-203, E-302 are the top bad actors | no |
+| F1 | **Ingest** CMMS exports, scanned inspection reports, PDF/Markdown manuals | CSV/XLSX loader with CMMS header variants; vision model transcribes scans; manuals chunked into ChromaDB |
+| F2 | **Failure-mode clustering** of free text like `mech seal lkg`, `SEAL LEAK HUA PHIR SE` | abbreviation expansion, `nomic-embed-text`, HDBSCAN with centroid merge, LLM-named clusters |
+| F3 | **Bad-actor ranking** | per asset × failure mode: events in 180 days, MTBF now vs before, cost trend, criticality-weighted score |
+| F4 | **Risk prediction** with reasons | XGBoost on AI4I 2020 plus SHAP top-3 reasons ("overstrain 3× typical") |
+| F5 | **Root-cause agent** with citations | LangGraph tool-calling agent; every claim cites `[INSP-004]`, a manual page or `[WO-0486]` |
+| F6 | **Documents** | work order `.docx`, bad-actor report `.xlsx` |
+| F7 | **Privacy guard** | tool allow-list, audit log with user and role, blocked-exfiltration drill, live outbound-connection count, internal-only Docker network |
 
-The run fails if a required step fails or the story doesn't verify. The data ends on 2026-11-13;
-set `ANALYSIS_AS_OF=2026-11-14` in `.env` so the agent's "today" matches it.
+## Architecture
 
-## Run in containers
+```
+ browser ──► gateway (nginx, 127.0.0.1:8080)          network "edge"   (only published port)
+                │  /api                                ─────────────────────────────────────
+                ▼                                      network "plant"  (internal: true)
+             backend (FastAPI)  ──►  ollama (GPU)       no route to the internet or the host
+             SQLite · analytics ──►  chroma (vectors)
+             agent · guard · docgen
+```
 
-Four services, defined in `docker-compose.yml`:
+Privacy is enforced in three layers, so one failing layer is not enough to leak data:
 
-| Service | Role | Network |
-|---|---|---|
-| `gateway` | nginx; the only host port (`127.0.0.1:8080`); proxies `/api` to the backend | `plant` + `edge` |
-| `backend` | FastAPI, SQLite, analytics, agent, guard | `plant` |
-| `chroma` | vector store server | `plant` |
-| `ollama` | LLM, vision and embedding models on the GPU | `plant` |
+1. **Network:** `backend`, `ollama` and `chroma` sit on an internal-only Docker network. They
+   can't reach the internet, a raw IP or the host, even with Wi-Fi on
+   (`scripts/check_isolation.py`).
+2. **Guard:** the agent can only call seven allow-listed tools. Any other call, or one carrying
+   a URL or e-mail, is blocked, recorded in `audit_log` / `blocked_attempts` and shown as a red
+   alert.
+3. **Proof on screen:** the Privacy tab shows live outbound connections (0) from the kernel's
+   socket table, plus the audit log and the injection drill.
 
-`plant` is an internal-only Docker network, so `backend`, `chroma` and `ollama` have no route
-off the machine. The gateway holds no data and only forwards requests.
+## Quick start (Windows, fresh clone)
 
-Needs an NVIDIA GPU with Docker Desktop on the WSL2 backend. Check GPU passthrough with
-`docker run --rm --gpus all ubuntu nvidia-smi`.
+**Prerequisites:** [uv](https://docs.astral.sh/uv/), Docker Desktop (WSL2 backend), an NVIDIA
+GPU, [Ollama](https://ollama.com). Node.js is only needed for frontend development.
 
 ```powershell
-# once: copy the weights your host Ollama already pulled into a Docker volume (about 90 s)
+# 1. Models (once, needs internet). Defaults are sized for a 6 GB GPU.
+ollama pull qwen2.5:7b-instruct-q3_K_M   # agent, cluster naming, inspection extraction
+ollama pull qwen2.5vl:3b                 # reads scanned inspection reports
+ollama pull nomic-embed-text             # embeddings
+ollama pull qwen2.5:3b-instruct          # optional faster fallback
+
+# 2. Python tooling + git hooks (every teammate)
+.\make.ps1 setup
+
+# 3. Copy the model weights into the Docker volume (offline, ~3 min for 13 GB)
 docker compose --profile setup run --rm model-copy
-# ...or, if they are not on the host, download them instead (needs internet)
-docker compose --profile setup run --rm model-pull
 
-# every time (works offline after the first build)
-docker compose up -d --build
+# 4. Quit the Ollama app in the system tray (it would hold the GPU), then start the stack
+docker compose up -d --build             # first build needs internet; later runs work offline
+
+# 5. Load the demo data inside the stack (~2 min: data, clusters, risk model, manuals, 4 scans)
+docker compose exec backend python /app/scripts/seed_demo.py --reset
+
+# 6. Check the whole demo (run with Wi-Fi off to prove it works offline)
+.\make.ps1 offline-check                 # -> ISOLATED ... DEMO READY
 ```
 
-**Quit the host Ollama app before every run** (system tray → Quit, or `ollama stop <model>`).
-If it is holding a model in VRAM, the container falls back to CPU and drops below 1 token/s.
-After asking one question, confirm the container is on the GPU:
+Open **http://127.0.0.1:8080**. On Linux/macOS use `make <target>` instead of `.\make.ps1`.
 
-```powershell
-docker compose exec ollama ollama ps    # PROCESSOR column should say "100% GPU"
-```
+## Demo script (about 3 minutes)
 
-The gateway image builds the UI from `frontend/` (no host Node needed). By default the screens
-whose backend exists are live and the rest show demo data; set `VITE_USE_MOCK=false` in `.env`
-and rebuild to make everything live.
+**Before presenting:**
+- Quit the Ollama tray app.
+- Run `.\make.ps1 demo-check` once to load the model into GPU memory (the first answer after a
+  start takes ~50 s; warm answers take ~20 s).
+- Switch Wi-Fi off.
 
-Prove the isolation from inside the backend container. The internal services must answer and
-everything outside must be unreachable:
+| Time | Beat | What the audience sees |
+|---|---|---|
+| 20 s | **Problem** | Failure history sits in messy CMMS text and scans; manuals go unread; the data is too confidential for cloud AI. |
+| 30 s | **Ingest** | Upload work orders: `mech seal lkg`, `SEAL LEAK HUA PHIR SE P-101` become clean failure modes. |
+| 30 s | **Dashboard** | *P-101 is the top bad actor: 4 mechanical-seal failures in 6 months, MTBF down 66% (150 → 51 days).* |
+| 60 s | **Ask PlantSentinel:** *"Why does P-101 keep failing and what should we do?"* | Steps stream live (history → inspection → manuals → risk). Answer: *shaft misalignment 0.3 mm at the coupling [INSP-004] against the pump manual's 0.05 mm limit (p. 3)*, then correct the soft foot, laser-align, replace the seal. Draft the work order and download the `.docx`. |
+| 30 s | **Privacy** | External connections: 0. Run the injection test: the poisoned vendor bulletin tells the AI to send data to `evil.example`; the guard blocks it, names the document and page, and logs it. |
+| 10 s | **Close** | One avoided unplanned failure pays for a per-plant annual licence. |
 
-```powershell
-docker compose exec backend python /app/scripts/check_isolation.py
-```
+`uv run python scripts/agent_cli.py rehearse -n 3` (or inside the backend container) asks the
+P-101 question three times and checks each beat: history, INSP-004 cited, the 0.05 mm
+manual passage, and a `.docx`.
 
-Then open <http://127.0.0.1:8080/api/health>. Set `LLM_MODEL`, `VISION_MODEL` or `EMBED_MODEL`
-in a `.env` file to change models; `EXTRA_MODELS` adds more to the pull. Build the backend with
-`--build-arg UV_EXTRAS="--extra ocr"` to include PaddleOCR.
+## Results
 
-Running without Docker still works: with `CHROMA_HOST` unset the backend uses the embedded
-Chroma store, and `OLLAMA_HOST` defaults to Ollama on the host.
+Measured on the demo laptop with the default models.
+
+| | Metric | Value |
+|---|---|---|
+| **Clustering** (491 work orders) | agreement with true failure modes (ARI) | **0.93** |
+| | homogeneity / silhouette (cosine) | 0.96 / 0.63 |
+| | failure modes found | 15 (14 true) |
+| **Risk model** (AI4I 2020 held-out test set, 3.4% failures) | F1 | **0.84** |
+| | precision / recall | 0.87 / 0.81 |
+| | ROC-AUC / PR-AUC | **0.975** / 0.875 |
+| **Planted story** | P-101 seal failures, last 180 days | 4 (MTBF 150 → 51 days, −66%) |
+| | bad actors flagged | exactly 3: P-101, C-203, E-302 |
+| **Agent** | demo question, warm | ~20–40 s, cites INSP-004 and the manual; rehearsal 3/3 |
+| **Inspections** | 4 scans read by the vision model | ~105 s, at seeding time |
+
+The decision threshold was tuned on a validation split; test metrics come from data the model
+never saw. All metrics are written to `models/metrics.json`.
+
+### Models and VRAM
+
+The default models fit entirely in 6 GB of GPU memory. Benchmark on the RTX 4050
+(`scripts/benchmark_models.py`):
+
+| LLM | On GPU | Speed | Tool choice | Cluster ARI |
+|---|---|---|---|---|
+| `qwen2.5:7b-instruct` (q4) | 82% | 24 tok/s | good | 0.93 |
+| **`qwen2.5:7b-instruct-q3_K_M`** (default) | **100%** | **39–41 tok/s** | good | 0.90 |
+| `qwen2.5:3b-instruct` | 100% | 76 tok/s | weaker | 0.87 |
+
+On an 8 GB+ GPU set `LLM_MODEL=qwen2.5:7b-instruct` and `VISION_MODEL=qwen2.5vl:7b` in `.env`.
+The vision model only transcribes scans; the text model extracts the findings (the small vision
+model returns empty JSON when asked to structure text).
 
 ## Data
 
-- `data/raw/ai4i2020.csv`: [AI4I 2020 Predictive Maintenance dataset](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset)
-  (UCI, CC BY 4.0), 10,000 rows. Committed so that setup needs no download.
-- `data/synthetic/`: generated assets and work orders (`scripts/generate_synthetic.py`).
-- `data/docs/`: manuals and SOPs. `data/scans/`: scanned inspection reports.
+All data is synthetic or public; no real plant data is in the repository.
 
-## Agent, RAG and documents
+| Path | Contents |
+|---|---|
+| `data/raw/ai4i2020.csv` | [AI4I 2020 Predictive Maintenance](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset) (UCI, CC BY 4.0), 10,000 rows |
+| `data/synthetic/` | 30 assets, 491 noisy work orders over 3 years (abbreviations, typos, Hinglish, duplicates), ground-truth labels, saved clusters, asset operating conditions. Regenerate with `scripts/generate_synthetic.py --seed 42` |
+| `data/scans/` | 4 scanned inspection reports (`scripts/make_demo_scans.py`). **INSP-004 (P-101):** *shaft misalignment 0.3 mm observed at coupling* |
+| `data/docs/manuals/` | pump O&M manual (alignment tolerance 0.05 mm) and seal reliability SOP |
+| `data/docs/demo_injection/` | poisoned vendor bulletin for the exfiltration drill (not indexed for normal search) |
 
-Set `OLLAMA_HOST` (default `http://localhost:11434`) if Ollama runs elsewhere. The analysis
-window ends at the latest work-order date; pin it with `ANALYSIS_AS_OF=2026-11-14`.
+**The planted story:** P-101 (criticality A) has four seal failures in six months, each time
+the seal was simply replaced. The RCA inspection finds 0.3 mm shaft misalignment, the manual
+says 0.05 mm is the limit, so the root cause is misalignment: laser-align, then replace the
+seal. C-203 (bearing overheating) and E-302 (tube fouling) are secondary bad actors.
+
+## Configuration
+
+Settings live in `backend/app/config.py`; every one can be overridden by an environment variable
+or a `.env` file.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `OLLAMA_HOST` | `http://localhost:11434` (Compose: `http://ollama:11434`) | model server |
+| `LLM_MODEL` / `VISION_MODEL` / `EMBED_MODEL` | see above | models |
+| `NAMING_MODEL` | `LLM_MODEL` | optional separate model for cluster naming |
+| `ANALYSIS_AS_OF` | latest work-order date | end of the 180-day analysis window |
+| `AGENT_MAX_TOOL_CALLS` | `8` | tool calls per question |
+| `DB_PATH`, `DATA_DIR`, `MODELS_DIR`, `CHROMA_DIR`, `CHROMA_HOST` | repo paths / embedded Chroma | storage |
+| `VITE_LIVE` / `VITE_USE_MOCK` | screens with a backend are live | gateway build: which screens use real data |
+
+## Local development (without Docker)
 
 ```powershell
-uv run python scripts/agent_cli.py check            # Ollama + models; --pull fetches missing ones
-uv run python scripts/agent_cli.py ingest           # index data/docs/manuals into ChromaDB
-uv run python scripts/agent_cli.py inspect-scans    # seeding: data/scans/* -> inspections (slow)
-uv run python scripts/agent_cli.py search "seal failure misalignment"
-uv run python scripts/agent_cli.py ask "Why does P-101 keep failing?" --demo-db
+.\make.ps1 seed                                   # fresh database from the committed data
+uv run uvicorn app.main:app --app-dir backend --reload    # API on :8000 (uses host Ollama)
+cd frontend; npm ci; npm run dev:live             # UI on :5173, /api proxied to :8000
 ```
 
-Agent tools (brief section 7): `get_asset_history`, `get_bad_actors`, `predict_risk`,
-`search_manuals`, `read_inspection`, `generate_work_order`, `export_report`; at most 8 tool
-calls per question. Calls to tools off the allow-list, or carrying a URL / e-mail, are blocked
-by the `ToolGuard` hook (`app/agent/tools.py`) and reported as `blocked` events.
-
-| Endpoint | Purpose |
+| Command | Purpose |
 |---|---|
-| `POST /api/agent/ask` `{question, tag}` | SSE in the frontend contract: `step`, `token`, `done`, `blocked`, `error` |
-| `POST /api/agent/chat` `{message, history}` | full agent event stream (`graph.EVENT_TYPES`) |
-| `GET /api/agent/status` | Ollama, models and manual index readiness |
-| `GET /api/assets/{tag}/inspection` | latest inspection (404 when none) |
-| `POST /api/documents/work-order` `{tag}` | draft work order (.docx) |
-| `POST /api/documents/bad-actor-report` | bad-actor report (.xlsx) |
-| `GET /api/documents`, `GET /api/documents/{id}/download` | list / download generated files |
+| `.\make.ps1 lint` / `test` / `format` | ruff, pytest (no Ollama or GPU needed), auto-fix |
+| `.\make.ps1 seed [--cluster live]` | load the demo data (`--cluster live` re-clusters with Ollama) |
+| `.\make.ps1 demo-check` | every demo beat through the gateway |
+| `.\make.ps1 offline-check` | isolation check, then the demo check (run with Wi-Fi off) |
+| `uv run python scripts/run_clustering.py` | re-cluster, evaluate against ground truth, save the fallback |
+| `uv run python scripts/train_risk_model.py` | retrain XGBoost, write metrics and asset conditions |
+| `uv run python scripts/agent_cli.py ask "..."` | ask the agent from the terminal |
+| `uv run pytest -m integration` | tests against real models |
 
-**Demo rehearsal** (on the demo laptop, after `seed_demo`): `uv run python scripts/agent_cli.py
-rehearse -n 3` asks "Why does P-101 keep failing and what should we do?" and checks each beat:
-seal history, INSP-004 cited, the manual's 0.05 mm tolerance cited, and a work-order .docx.
-For diagnosis questions the agent always checks history, the latest inspection and the
-manuals before answering; if the model skips one, the call is made for it.
+## API
 
-**Hooks for the privacy layer** (`app/agent`):
+All routes are under `/api`; the spec's paths (`/analytics/...`, `/assets/{tag}/risk`) are
+aliases of the same handlers.
 
-- Audit: `make_context(audit=fn)` or `tools.register_audit_sink(fn)` gets one audit_log-shaped
-  row per tool call (`allowed` / `blocked` / `error`); `tools.sqlite_audit_sink(db_path)`
-  writes them to `audit_log`.
-- Injection demo: `injection_demo.stream_injection_test(ctx, llm)` runs the agent over the
-  poisoned vendor PDF (in-memory index only); wrap it with
-  `frontend_events.frontend_stream(...)` for `POST /api/privacy/injection-test`.
+| Area | Routes |
+|---|---|
+| Health | `GET /health`, `GET /agent/status` |
+| Dashboard | `GET /dashboard/summary`, `GET /bad-actors`, `GET /failure-modes`, `GET /mtbf-trend` (`window_days=90/180/365`) |
+| Assets | `GET /assets`, `GET /assets/{tag}`, `GET /assets/{tag}/work-orders`, `GET /risk/{tag}`, `GET /assets/{tag}/inspection` |
+| Ingest | `POST /ingest/work-orders` (CSV/XLSX), `POST /cluster` |
+| Agent | `POST /agent/ask` `{question, tag}` (SSE: `step`, `token`, `done`, `blocked`, `error`), `POST /agent/chat` |
+| Documents | `POST /documents/work-order`, `POST /documents/bad-actor-report`, `GET /documents`, `GET /documents/{id}/download` |
+| Privacy | `GET /privacy/status`, `GET /privacy/blocked`, `GET /audit-log`, `POST /privacy/injection-test` (SSE) |
 
-Real-model tests: `uv run pytest -m integration`. The manuals in `data/docs/manuals/` and the
-vendor bulletin in `data/docs/demo_injection/` (prompt-injection demo) are synthetic.
+Agent tools: `get_asset_history`, `get_bad_actors`, `predict_risk`, `search_manuals`,
+`read_inspection`, `generate_work_order`, `export_report`. The UI sends the user's role in the
+`X-Role` header (`engineer` or `technician`), and the backend records it in the audit log.
+Technicians can't generate or export documents in the UI; the API doesn't enforce this yet.
 
-## Commit policy
+## Repository layout
 
-Commit messages and PR descriptions must not contain AI co-author trailers or "generated by"
-attribution lines. This is enforced in two places:
+```
+backend/app/
+  analytics/   clustering, bad actors, risk model, dashboard figures
+  agent/       LangGraph agent, tools, RAG, inspections, prompts, injection drill
+  guard/       audit guard (allow-list + audit_log + blocked_attempts)
+  privacy/     connection monitor, injection drill
+  ingestion/   CSV/XLSX work orders, scan seeding entry point
+  docgen/      work order .docx, bad-actor report .xlsx
+  api/         FastAPI routers
+frontend/      React + Vite + TypeScript + Tailwind + Recharts
+scripts/       seed_demo, demo_check, generate_synthetic, train_risk_model, run_clustering,
+               make_demo_scans, agent_cli, benchmark_models, check_isolation, check_no_ai_coauthor
+deploy/gateway nginx config        data/   datasets, scans, manuals        models/   metrics
+```
 
-- locally, by the `commit-msg` pre-commit hook (`scripts/check_no_ai_coauthor.py`)
-- in CI, by `.github/workflows/commit-policy.yml`
+## Troubleshooting
 
-## CI and branch protection
+| Symptom | Fix |
+|---|---|
+| Answers crawl (<1 token/s) | The host Ollama app holds the GPU. Quit it from the tray, then `docker compose restart ollama`. Check with `docker compose exec ollama ollama ps` (should say `100% GPU`). |
+| First answer takes ~50 s | Normal cold start; run `.\make.ps1 demo-check` before presenting. |
+| `docker compose build` fails on a download | Network dropped mid-build; re-run (the uv cache keeps what was downloaded). |
+| Seed step 7 (inspections) warns | `qwen2.5vl:3b` or the LLM isn't in the Ollama volume; pull it on the host, re-run `model-copy`. |
+| Risk endpoint returns 503 | The model isn't trained: re-run the seed (it trains if missing). |
+| Docker "cannot find the file specified" | Docker Desktop isn't running; start it. |
 
-| Workflow | Runs on | Checks |
-|---|---|---|
-| `lint-test` | PRs, push to `main` | ruff check, ruff format, pytest; frontend lint and build |
-| `commit-policy` | PRs | commit messages in the PR range and the PR body |
+## Team workflow
 
-In GitHub, go to **Settings → Branches → Add rule for `main`** and enable
-"Require status checks to pass". Mark `backend`, `frontend` and `no-ai-coauthor` as required.
-Also enable "Require a pull request before merging".
+- **Commit policy:** no AI co-author trailers or "generated with" lines in commits or PR
+  descriptions. Enforced by the `commit-msg` pre-commit hook and the `commit-policy` workflow.
+- **CI** (`lint-test`): ruff check, ruff format, pytest, frontend lint and build, on every PR
+  and push to `main`.
+- **Branch protection:** in GitHub, go to *Settings → Branches* and add a rule for `main`.
+  Require pull requests and the `backend`, `frontend` and `no-ai-coauthor` checks.
+- Work on a fresh branch from `main` for each change; merged branches are deleted.
