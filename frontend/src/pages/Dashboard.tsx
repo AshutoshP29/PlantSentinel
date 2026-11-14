@@ -148,9 +148,13 @@ export default function Dashboard() {
               label="Plant MTBF"
               value={`${s.plant_mtbf_days} days`}
               foot={
-                <span className="text-critical-ink">
-                  {formatPct(s.plant_mtbf_change_pct)} <span className="text-muted">vs previous period</span>
-                </span>
+                s.plant_mtbf_change_pct != null ? (
+                  <span className={s.plant_mtbf_change_pct < 0 ? 'text-critical-ink' : 'text-good-ink'}>
+                    {formatPct(s.plant_mtbf_change_pct)} <span className="text-muted">vs previous period</span>
+                  </span>
+                ) : (
+                  `${s.assets_monitored} assets, last ${s.window_days} days`
+                )
               }
             />
             <StatTile icon={AlertTriangle} label="Failure events" value={formatNumber(s.failure_events)} foot={`Last ${s.window_days} days`} />
@@ -172,7 +176,7 @@ export default function Dashboard() {
       <Card
         className="mt-4"
         title="Top 10 bad actors"
-        subtitle="Recurring = 3+ events of one failure mode in 180 days · Review = MTBF fell more than 40%"
+        subtitle="Ranked by the backend bad-actor score · Recurring = 3+ events of one failure mode in 180 days · Review = MTBF fell more than 40%"
         bodyClassName="pt-3 pb-2"
       >
         {actors.error ? (
@@ -244,11 +248,17 @@ function TopActorBanner({ actor, windowDays }: { actor: BadActor; windowDays: nu
           </span>
         </div>
         <div className="mt-0.5 text-sm text-ink-2 md:text-base">
-          {actor.events} {actor.failure_mode.toLowerCase()} events in {windowDays} days · MTBF{' '}
-          <span className="font-semibold text-critical-ink">
-            {actor.mtbf_change_pct < 0 ? 'down' : 'up'} {Math.abs(actor.mtbf_change_pct)}%
-          </span>{' '}
-          ({actor.mtbf_prev_days} → {actor.mtbf_days} days)
+          {actor.events} {actor.failure_mode.toLowerCase()} events in {windowDays} days
+          {actor.mtbf_change_pct !== 0 && (
+            <>
+              {' '}
+              · MTBF{' '}
+              <span className={`font-semibold ${actor.mtbf_change_pct < 0 ? 'text-critical-ink' : 'text-good-ink'}`}>
+                {actor.mtbf_change_pct < 0 ? 'down' : 'up'} {Math.abs(actor.mtbf_change_pct)}%
+              </span>{' '}
+              ({actor.mtbf_prev_days} → {actor.mtbf_days} days)
+            </>
+          )}
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -326,6 +336,7 @@ function ChartCard({
 function BadActorTable({ rows }: { rows: BadActor[] }) {
   const navigate = useNavigate()
   const showCost = useRole().can('view_costs')
+  const maxScore = Math.max(...rows.map((r) => r.score), 1)
   return (
     <div className="overflow-x-auto px-2">
       <table className="w-full min-w-[920px] text-sm">
@@ -347,7 +358,7 @@ function BadActorTable({ rows }: { rows: BadActor[] }) {
             const st = STATUS_INFO[r.status]
             return (
               <tr
-                key={r.tag}
+                key={`${r.tag}|${r.failure_mode}`}
                 onClick={() => navigate(`/assets/${r.tag}`)}
                 className="cursor-pointer border-b border-line last:border-0 hover:bg-surface-2/60"
               >
@@ -366,15 +377,19 @@ function BadActorTable({ rows }: { rows: BadActor[] }) {
                 </td>
                 <td className={`${TD} text-ink`}>{r.failure_mode}</td>
                 <td className={`${TD} tabular text-right text-ink`}>{r.events}</td>
-                <td className={`${TD} tabular text-right text-ink`}>{r.mtbf_days} d</td>
+                <td className={`${TD} tabular text-right text-ink`} title={r.mtbf_days == null ? 'Needs 2+ events in the window' : undefined}>
+                  {r.mtbf_days == null ? <span className="text-muted">—</span> : `${r.mtbf_days} d`}
+                </td>
                 <td className={`${TD} text-right`}>
-                  <Chip tone={r.mtbf_change_pct < 0 ? 'critical' : r.mtbf_change_pct > 0 ? 'good' : 'neutral'}>
-                    {formatPct(r.mtbf_change_pct)}
-                  </Chip>
+                  {r.mtbf_change_pct === 0 ? (
+                    <span className="text-muted">—</span>
+                  ) : (
+                    <Chip tone={r.mtbf_change_pct < 0 ? 'critical' : 'good'}>{formatPct(r.mtbf_change_pct)}</Chip>
+                  )}
                 </td>
                 <td className={`${TD} tabular text-right text-ink-2`}>{showCost ? formatInr(r.cost_inr) : <Restricted />}</td>
                 <td className={`${TD} pl-6`}>
-                  <ScoreMeter score={r.score} />
+                  <ScoreMeter score={r.score} max={maxScore} />
                 </td>
                 <td className={TD}>
                   <Chip tone={st.tone} title={st.title}>
@@ -390,14 +405,16 @@ function BadActorTable({ rows }: { rows: BadActor[] }) {
   )
 }
 
-function ScoreMeter({ score }: { score: number }) {
-  const fill = score >= 80 ? 'bg-critical' : score >= 60 ? 'bg-serious' : 'bg-warning'
+/** The backend score is unbounded, so the bar is relative to the top row. */
+function ScoreMeter({ score, max }: { score: number; max: number }) {
+  const rel = score / max
+  const fill = rel >= 0.66 ? 'bg-critical' : rel >= 0.33 ? 'bg-serious' : 'bg-warning'
   return (
-    <div className="flex items-center gap-2" title={`Bad-actor score ${score} of 100`}>
+    <div className="flex items-center gap-2" title={`Bad-actor score ${score} (events × criticality weight × (1 + MTBF drop))`}>
       <div className="h-1.5 w-14 overflow-hidden rounded-full bg-surface-3">
-        <div className={`h-full rounded-full ${fill}`} style={{ width: `${score}%` }} />
+        <div className={`h-full rounded-full ${fill}`} style={{ width: `${Math.max(4, rel * 100)}%` }} />
       </div>
-      <span className="tabular w-6 text-right font-semibold text-ink">{score}</span>
+      <span className="tabular w-9 text-right font-semibold text-ink">{score.toFixed(1)}</span>
     </div>
   )
 }

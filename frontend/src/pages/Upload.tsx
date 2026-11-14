@@ -17,7 +17,7 @@ import {
 import { useRef, useState, type DragEvent } from 'react'
 import { api } from '../api/client'
 import { p101Inspection } from '../api/mock'
-import type { ClusterPreview, IngestFile, IngestKind, IngestStatus, IngestSummary } from '../api/types'
+import type { ClusterRun, IngestFile, IngestKind, IngestStatus, IngestSummary } from '../api/types'
 import { InspectionPaper } from '../components/SourceDocs'
 import { Button, Card, Chip, EmptyState, PageHeader } from '../components/ui'
 import { formatDate, formatNumber } from '../lib/format'
@@ -47,7 +47,7 @@ export default function Upload() {
   const [files, setFiles] = useState<IngestFile[]>([])
   const [summary, setSummary] = useState<IngestSummary | null>(null)
   const [busy, setBusy] = useState(false)
-  const [clusters, setClusters] = useState<ClusterPreview[] | null>(null)
+  const [clusters, setClusters] = useState<ClusterRun | null>(null)
   const [clustering, setClustering] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -246,7 +246,7 @@ export default function Upload() {
             >
               {clusters ? (
                 <div className="divide-y divide-line">
-                  {clusters.map((c) => (
+                  {clusters.clusters.map((c) => (
                     <div key={c.name} className="grid items-center gap-3 py-3 first:pt-1 sm:grid-cols-[1fr_auto_1fr]">
                       <div className="flex flex-wrap gap-1.5">
                         {c.samples.map((t) => (
@@ -261,6 +261,11 @@ export default function Upload() {
                       </div>
                     </div>
                   ))}
+                  <p className="pt-3 text-xs text-muted">
+                    {clusters.metrics.n_work_orders} work orders → {clusters.metrics.n_clusters} clusters →{' '}
+                    {clusters.metrics.n_failure_modes} failure modes · silhouette {clusters.metrics.silhouette.toFixed(2)} · agreement with
+                    ground truth (ARI) {clusters.metrics.ari_vs_truth.toFixed(2)}
+                  </p>
                 </div>
               ) : (
                 <EmptyState icon={Sparkles} title={clustering ? 'Grouping work orders…' : 'Ready to cluster'}>
