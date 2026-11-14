@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     models_dir: Path = REPO_ROOT / "models"
     db_path: Path = REPO_ROOT / "data" / "plantsentinel.db"
     chroma_dir: Path = REPO_ROOT / "data" / "chroma"
+    # When set, use a Chroma server (the `chroma` Compose service) instead of the embedded
+    # store in chroma_dir.
+    chroma_host: str | None = None
+    chroma_port: int = 8000
 
     # Privacy: when true, any non-Ollama outbound HTTP must raise (used by offline-check)
     block_egress: bool = False
