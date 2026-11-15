@@ -10,6 +10,11 @@ the app. It shows on screen that nothing leaves the machine.
 > **Status:** the full demo runs end to end on the demo laptop (RTX 4050, 6 GB) **with Wi-Fi
 > off**: `.\make.ps1 offline-check` reports `ISOLATED` and `DEMO READY`.
 
+**More documentation:** [Architecture](docs/ARCHITECTURE.md) (components, flows, privacy
+layers, design decisions, known gaps) · [Data](docs/DATA.md) (datasets, the planted story,
+reproducing the numbers) · [Project brief](docs/PROJECT_BRIEF.md). AI coding assistants: see
+[CLAUDE.md](CLAUDE.md) and the skills in `.claude/skills/`.
+
 ## What it does
 
 | | Feature | How |
