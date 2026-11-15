@@ -94,6 +94,22 @@ Three independent layers, so one failing is not enough to leak data:
 Text returned by tools is treated as data: the system prompt says so, and manuals are indexed
 separately from the injection folder.
 
+### Redaction
+
+`guard/redaction.py` replaces secrets, API keys, e-mail addresses, Indian phone numbers and
+Aadhaar-style ID numbers with `[REDACTED:kind]` **before anything is stored**:
+
+| Where | What is redacted |
+|---|---|
+| Work-order ingest (`POST /api/ingest/work-orders`, the seed) | description and action text; the upload result reports how many values |
+| Scanned inspections (seed) | the raw transcript and every extracted field |
+| `audit_log` | tool-call input and output |
+
+Redaction is on by default in `ingest_work_orders`, so no caller can forget it. The Privacy
+panel's redaction count covers all three tables. It is pattern-based: it checks for zero false
+positives across the whole synthetic history (IDs, dates, measurements, costs), but it doesn't
+recognise personal names.
+
 ### Roles
 
 | Role (`X-Role`) | View, ask | Generate work orders | Export reports |
@@ -134,9 +150,9 @@ document, page and section as metadata for citations. Trained artefacts live in 
 
 ## Known gaps
 
-- **PII redaction on ingest is not wired.** `ingest_work_orders(..., redact=)` accepts a
-  redactor, but no caller passes one; redaction currently runs on audit-log entries only, and
-  it uses regular expressions rather than Presidio.
+- **Redaction doesn't recognise personal names.** It is pattern-based (contact details,
+  secrets, ID numbers); the spec's Presidio would add name detection but needs a spaCy model
+  in the image.
 - **No real authentication.** The role comes from a header the UI sets (spec §11 asks for no
   more). Sign-in and user management in the UI are local to the browser.
 - **`DELETE /api/data`** (the UI's reset button) has no backend route.
