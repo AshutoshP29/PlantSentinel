@@ -25,6 +25,7 @@ def test_permissions_match_the_spec() -> None:
     assert roles.can("engineer", "generate") and roles.can("engineer", "export")
     assert roles.can("technician", "ask") and roles.can("technician", "view")
     assert not roles.can("technician", "generate") and not roles.can("technician", "export")
+    assert roles.can("engineer", "manage") and not roles.can("technician", "manage")
     assert roles.allowed_tools("engineer") == TOOL_NAMES
     tech = roles.allowed_tools("technician")
     assert "generate_work_order" not in tech and "export_report" not in tech
