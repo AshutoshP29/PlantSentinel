@@ -4,12 +4,13 @@ Paths follow the frontend client; the spec's paths (/analytics/..., /assets/{tag
 /ingest/work-orders) are registered on the same handlers.
 """
 
+import json
 import sqlite3
 from collections.abc import Iterator
-from typing import Annotated
+from typing import Annotated, Literal
 
 import pandas as pd
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile
 
 from app.analytics import dashboard, risk
 from app.analytics.bad_actors import score_bad_actors
@@ -17,6 +18,9 @@ from app.analytics.cluster import recluster
 from app.analytics.metrics import read_metrics
 from app.config import get_settings
 from app.db import connect
+from app.guard.audit import write_audit
+from app.guard.roles import require
+from app.ingestion.reset import clear_data
 from app.ingestion.work_orders import ingest_work_orders, read_table
 
 router = APIRouter(tags=["analytics"])
@@ -154,3 +158,27 @@ async def upload_work_orders(file: UploadFile, conn: Conn) -> dict:
         return {"file": file.filename, **ingest_work_orders(conn, df)}
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+@router.delete("/data")
+def delete_data(
+    conn: Conn,
+    role: Annotated[str, Depends(require("manage"))],
+    scope: Annotated[Literal["work_orders", "all"], Query()] = "work_orders",
+    x_user: Annotated[str | None, Header()] = None,
+) -> dict:
+    """Clear ingested plant data (engineers only). Keeps the asset register, audit log,
+    manual index and risk model; the reset itself is written to the audit log."""
+    result = clear_data(conn, scope)
+    write_audit(
+        conn,
+        {
+            "user": x_user or "api",
+            "role": role,
+            "action": "data_reset",
+            "input": json.dumps({"scope": scope}),
+            "output": json.dumps(result["deleted"]),
+            "status": "allowed",
+        },
+    )
+    return result

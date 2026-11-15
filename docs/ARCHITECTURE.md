@@ -112,10 +112,16 @@ recognise personal names.
 
 ### Roles
 
-| Role (`X-Role`) | View, ask | Generate work orders | Export reports |
-|---|---|---|---|
-| `technician` (also: missing or unknown) | yes | no | no |
-| `engineer` | yes | yes | yes |
+| Role (`X-Role`) | View, ask | Generate work orders | Export reports | Clear plant data |
+|---|---|---|---|---|
+| `technician` (also: missing or unknown) | yes | no | no | no |
+| `engineer` | yes | yes | yes | yes |
+
+**Clearing data** (`DELETE /api/data`, `ingestion/reset.py`): the default scope removes work
+orders and failure modes, which the Upload page can put back; `scope=all` also removes
+inspections (re-seed to read the scans again). The asset register, `audit_log`,
+`blocked_attempts`, the manual index, the risk model and generated documents are never
+cleared, and every reset is itself an audit row (`action = data_reset`, with the row counts).
 
 ## Data model (SQLite)
 
@@ -155,7 +161,6 @@ document, page and section as metadata for citations. Trained artefacts live in 
   in the image.
 - **No real authentication.** The role comes from a header the UI sets (spec §11 asks for no
   more). Sign-in and user management in the UI are local to the browser.
-- **`DELETE /api/data`** (the UI's reset button) has no backend route.
 - **Live upload of scans** has no route; scans are read at seeding time.
 - **Risk operating conditions are mapped.** AI4I is a lab dataset; each asset is given one
   held-out AI4I row as its current condition, chosen so the story assets are high risk.

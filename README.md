@@ -196,7 +196,7 @@ aliases of the same handlers.
 | Health | `GET /health`, `GET /agent/status` |
 | Dashboard | `GET /dashboard/summary`, `GET /bad-actors`, `GET /failure-modes`, `GET /mtbf-trend` (`window_days=90/180/365`) |
 | Assets | `GET /assets`, `GET /assets/{tag}`, `GET /assets/{tag}/work-orders`, `GET /risk/{tag}`, `GET /assets/{tag}/inspection` |
-| Ingest | `POST /ingest/work-orders` (CSV/XLSX), `POST /cluster` |
+| Ingest | `POST /ingest/work-orders` (CSV/XLSX), `POST /cluster`, `DELETE /data` (engineers; `?scope=all` also clears inspections) |
 | Agent | `POST /agent/ask` `{question, tag}` (SSE: `step`, `token`, `done`, `blocked`, `error`), `POST /agent/chat` |
 | Documents | `POST /documents/work-order`, `POST /documents/bad-actor-report`, `GET /documents`, `GET /documents/{id}/download` |
 | Privacy | `GET /privacy/status`, `GET /privacy/blocked`, `GET /audit-log`, `POST /privacy/injection-test` (SSE) |
@@ -209,15 +209,19 @@ Agent tools: `get_asset_history`, `get_bad_actors`, `predict_risk`, `search_manu
 The UI sends the user's role in the `X-Role` header; a missing or unknown role is treated as a
 technician (least privilege). The backend enforces it (`app/guard/roles.py`):
 
-| Role | View, ask the agent | Generate work orders | Export reports |
-|---|---|---|---|
-| `technician` | yes | no | no |
-| `engineer` | yes | yes | yes |
+| Role | View, ask the agent | Generate work orders | Export reports | Clear plant data |
+|---|---|---|---|---|
+| `technician` | yes | no | no | no |
+| `engineer` | yes | yes | yes | yes |
 
 For a technician the agent is only offered the five read-only tools. If the model still tries
 `generate_work_order` or `export_report`, the guard blocks the call, writes it to the audit log
-and shows it as a blocked attempt. The document endpoints return `403`. Every audit row records
-the user and role.
+and shows it as a blocked attempt. The document endpoints and `DELETE /data` return `403`. Every
+audit row records the user and role.
+
+`DELETE /data` (the Upload page's clear button) removes work orders and failure modes so the
+upload step can start again; the equipment register, audit log, manual index and risk model are
+never cleared, and the reset itself is written to the audit log.
 
 ## Repository layout
 
