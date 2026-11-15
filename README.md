@@ -19,13 +19,13 @@ reproducing the numbers) · [Project brief](docs/PROJECT_BRIEF.md). AI coding as
 
 | | Feature | How |
 |---|---|---|
-| F1 | **Ingest** CMMS exports, scanned inspection reports, PDF/Markdown manuals | CSV/XLSX loader with CMMS header variants; vision model transcribes scans; manuals chunked into ChromaDB |
+| F1 | **Ingest** CMMS exports, scanned inspection reports, PDF/Markdown manuals | CSV/XLSX loader with CMMS header variants; vision model transcribes scans; manuals chunked into ChromaDB; personal data redacted before storage |
 | F2 | **Failure-mode clustering** of free text like `mech seal lkg`, `SEAL LEAK HUA PHIR SE` | abbreviation expansion, `nomic-embed-text`, HDBSCAN with centroid merge, LLM-named clusters |
 | F3 | **Bad-actor ranking** | per asset × failure mode: events in 180 days, MTBF now vs before, cost trend, criticality-weighted score |
 | F4 | **Risk prediction** with reasons | XGBoost on AI4I 2020 plus SHAP top-3 reasons ("overstrain 3× typical") |
 | F5 | **Root-cause agent** with citations | LangGraph tool-calling agent; every claim cites `[INSP-004]`, a manual page or `[WO-0486]` |
 | F6 | **Documents** | work order `.docx`, bad-actor report `.xlsx` |
-| F7 | **Privacy guard** | tool allow-list, role permissions (technician / engineer), audit log, blocked-exfiltration drill, live outbound-connection count, internal-only Docker network |
+| F7 | **Privacy guard** | tool allow-list, role permissions (technician / engineer), PII redaction on ingest and in the audit log, blocked-exfiltration drill, live outbound-connection count, internal-only Docker network |
 
 ## Architecture
 

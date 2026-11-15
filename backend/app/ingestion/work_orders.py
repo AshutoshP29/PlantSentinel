@@ -1,7 +1,7 @@
 """F1: load CMMS exports (CSV / XLSX) of work orders and the equipment register into SQLite.
 
-Free text is stored as-is (description_clean / failure modes are set later by clustering).
-`redact` is the hook for the Guard's PII redaction (Presidio) before anything is stored.
+Free text is redacted before it is stored: secrets, e-mail addresses, phone and ID numbers
+become `[REDACTED:kind]` (app.guard.redaction). Failure modes are set later by clustering.
 """
 
 import io
@@ -9,6 +9,8 @@ import sqlite3
 from collections.abc import Callable
 
 import pandas as pd
+
+from app.guard.redaction import redact_text
 
 Redactor = Callable[[str], str]
 
@@ -67,9 +69,13 @@ def normalise_work_orders(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def ingest_work_orders(
-    conn: sqlite3.Connection, df: pd.DataFrame, redact: Redactor | None = None
+    conn: sqlite3.Connection, df: pd.DataFrame, redact: Redactor | None = redact_text
 ) -> dict:
-    """Insert work orders; existing ids are skipped (re-uploading the same export is safe)."""
+    """Insert work orders; existing ids are skipped (re-uploading the same export is safe).
+
+    Description and action text pass through `redact` first (on by default; `None` stores the
+    text unchanged, for tests only). `redacted` in the result counts the values it changed.
+    """
     wo = normalise_work_orders(df)
     bad_date = wo["date"].isna()
     errors = [f"{i}: unreadable date" for i in wo.loc[bad_date, "id"]][:20]
@@ -77,7 +83,7 @@ def ingest_work_orders(
 
     known = {r[0] for r in conn.execute("SELECT tag FROM assets")}
     new_tags = sorted(set(wo["tag"]) - known)
-    inserted = 0
+    inserted = redacted = 0
     with conn:
         conn.executemany(
             "INSERT INTO assets(tag, type, location, criticality) VALUES (?, 'unknown', NULL, 'C')",
@@ -86,8 +92,10 @@ def ingest_work_orders(
         for r in wo.itertuples(index=False):
             desc, action = r.description, r.action_taken
             if redact:
-                desc = redact(desc) if desc else desc
-                action = redact(action) if action else action
+                clean_desc = redact(desc) if desc else desc
+                clean_action = redact(action) if action else action
+                redacted += (clean_desc != desc) + (clean_action != action)
+                desc, action = clean_desc, clean_action
             cur = conn.execute(
                 """INSERT OR IGNORE INTO work_orders
                    (id, tag, date, description, action_taken, downtime_hrs, cost_inr)
@@ -107,6 +115,7 @@ def ingest_work_orders(
         "rows": len(df),
         "inserted": inserted,
         "duplicates_skipped": len(wo) - inserted,
+        "redacted": int(redacted),
         "rejected": int(bad_date.sum()),
         "errors": errors,
         "new_assets": new_tags,

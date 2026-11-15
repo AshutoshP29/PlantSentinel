@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.agent.data import normalise_tag
 from app.config import get_settings
+from app.guard.redaction import redact, redact_value
 
 log = logging.getLogger(__name__)
 
@@ -326,6 +327,11 @@ def ingest_scans(
                 conn.execute("DELETE FROM inspections WHERE id = ?", (existing[0],))
             iid = inspection_id(conn, ex.tag, ex.date, ex.report_no, path.stem)
             meta = {**ex.model_dump(), "pages": len(page_images(path)), "file_name": path.name}
+            # Personal data and secrets never reach the table (transcript and findings alike).
+            raw_text, n_raw = redact(raw_text)
+            meta, n_meta = redact_value(meta)
+            if n_raw or n_meta:
+                log.info("inspection %s: %d value(s) redacted", iid, n_raw + n_meta)
             conn.execute(
                 "INSERT INTO inspections(id, tag, date, file_path, raw_text, extracted_json) "
                 "VALUES (?, ?, ?, ?, ?, ?)",

@@ -10,44 +10,16 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import sqlite3
 import uuid
 from datetime import datetime
 
 from app.agent.tools import TOOL_SPECS, AllowListGuard, GuardDecision, _find_target
+from app.guard.redaction import REDACTED_MARK, redact
 
 log = logging.getLogger(__name__)
 
 MAX_FIELD_CHARS = 2000  # audit rows stay readable; full tool output is not stored
-
-# What must not sit in an audit table in clear text. Order matters: specific before generic.
-REDACTIONS: list[tuple[str, re.Pattern[str]]] = [
-    (
-        "secret",
-        re.compile(
-            r"(?i)\b(password|passwd|pwd|secret|token|api[_-]?key|authorization)\b"
-            r"(\s*[\"']?\s*[:=]\s*[\"']?)([^\s\"',;}]+)"
-        ),
-    ),
-    ("key", re.compile(r"\b(?:sk|pk|ghp|gho|xox[abp])[-_][A-Za-z0-9_-]{16,}\b")),
-    ("email", re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")),
-    ("phone", re.compile(r"(?<![\w.])(?:\+91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}(?![\w.])")),
-    ("id", re.compile(r"(?<![\w.])\d{4}[\s-]\d{4}[\s-]\d{4}(?![\w.])")),  # Aadhaar-style
-]
-REDACTED_MARK = "[REDACTED:"
-
-
-def redact(text: str) -> tuple[str, int]:
-    """Replace secrets and personal data with `[REDACTED:kind]`. Returns (text, how many)."""
-    total = 0
-    for kind, pattern in REDACTIONS:
-        if kind == "secret":
-            text, n = pattern.subn(rf"\1\2{REDACTED_MARK}secret]", text)
-        else:
-            text, n = pattern.subn(f"{REDACTED_MARK}{kind}]", text)
-        total += n
-    return text, total
 
 
 def _clip(value: object) -> str:
@@ -142,13 +114,26 @@ def list_blocked(conn: sqlite3.Connection, limit: int = 100) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+# Stored text that may hold redaction marks: (table, columns).
+REDACTED_COLUMNS = (
+    ("audit_log", ("input", "output")),
+    ("work_orders", ("description", "action_taken")),
+    ("inspections", ("raw_text", "extracted_json")),
+)
+
+
 def count_redactions(conn: sqlite3.Connection) -> int:
-    """How many values the audit log is holding back (occurrences of the redaction mark)."""
+    """How many values the app is holding back: redaction marks in the audit log and in
+    ingested work orders and inspection reports."""
     mark, n = REDACTED_MARK, len(REDACTED_MARK)
-    row = conn.execute(
-        "SELECT COALESCE(SUM("
-        " (LENGTH(input) - LENGTH(REPLACE(input, ?, ''))) / ?"
-        " + (LENGTH(output) - LENGTH(REPLACE(output, ?, ''))) / ?), 0) FROM audit_log",
-        (mark, n, mark, n),
-    ).fetchone()
-    return int(row[0])
+    total = 0
+    for table, columns in REDACTED_COLUMNS:
+        terms = " + ".join(
+            f"(LENGTH(COALESCE({c}, '')) - LENGTH(REPLACE(COALESCE({c}, ''), ?, ''))) / ?"
+            for c in columns
+        )
+        row = conn.execute(
+            f"SELECT COALESCE(SUM({terms}), 0) FROM {table}", (mark, n) * len(columns)
+        ).fetchone()
+        total += int(row[0])
+    return total
